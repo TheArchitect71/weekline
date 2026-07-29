@@ -1,5 +1,5 @@
 {
   "serverUrl": "https://schedule.example.com",
   "hostControlToken": "replace-with-the-office-host-control-token",
-  "appVersion": "0.1.0-alpha.1"
+  "appVersion": "0.1.0-alpha.2"
 }

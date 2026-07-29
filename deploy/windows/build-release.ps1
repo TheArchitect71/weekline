@@ -17,7 +17,12 @@ if (-not (Test-Path $CaddyExecutable -PathType Leaf)) {
 }
 
 $ExpectedDenoVersion = (Get-Content (Join-Path $RepositoryRoot ".deno-version") -Raw).Trim()
-$denoVersionText = ((& deno --version | Select-Object -First 1) -replace '^deno\s+', '').Trim()
+$denoVersionLine = (& deno --version | Select-Object -First 1).Trim()
+$denoVersionParts = $denoVersionLine -split '\s+'
+if ($denoVersionParts.Length -lt 2 -or $denoVersionParts[0] -ne "deno") {
+    throw "Unable to determine the installed Deno version from: $denoVersionLine"
+}
+$denoVersionText = $denoVersionParts[1]
 $denoVersion = [Version]$denoVersionText
 if ($denoVersion -ne [Version]$ExpectedDenoVersion) {
     throw "Deno $ExpectedDenoVersion is required for a reproducible manager build. Found $denoVersionText."
