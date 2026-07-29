@@ -1,0 +1,99 @@
+<section class="content-page people-page">
+  <header class="page-heading">
+    <div>
+      <h1>People</h1>
+      <p>Manage employees who can appear on schedules.</p>
+    </div>
+    <div class="page-actions">
+      <span>{{ activeCount() }} schedulable</span>
+      <button class="button primary" type="button" (click)="startCreate()">Add employee</button>
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="inline-error" role="alert">{{ error() }}</p>
+  }
+
+  @if (formOpen) {
+    <form class="employee-form" (ngSubmit)="saveEmployee()">
+      <header>
+        <div>
+          <h2>{{ editingId ? 'Edit employee' : 'Add employee' }}</h2>
+          <p>{{ editingId ? 'Update their directory details and schedule eligibility.' : 'Create a worker account for scheduling.' }}</p>
+        </div>
+        <button class="button secondary" type="button" (click)="cancelEdit()">Cancel</button>
+      </header>
+
+      <div class="form-grid">
+        <label>
+          Name
+          <input name="displayName" type="text" maxlength="80" [(ngModel)]="form.displayName" required />
+        </label>
+        <label>
+          Email
+          <input name="email" type="email" [(ngModel)]="form.email" required />
+        </label>
+        @if (!editingId) {
+          <label>
+            Initial password
+            <input name="initialPassword" type="password" minlength="8" [(ngModel)]="form.initialPassword" required />
+          </label>
+        }
+        <label>
+          Status
+          <select name="status" [(ngModel)]="form.status" (ngModelChange)="onStatusChange()">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </label>
+      </div>
+
+      <label class="check-row">
+        <input name="scheduleEligible" type="checkbox" [(ngModel)]="form.scheduleEligible" [disabled]="form.status !== 'active'" />
+        Eligible for new shifts
+      </label>
+
+      <footer>
+        <button class="button primary" type="submit" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save employee' }}
+        </button>
+      </footer>
+    </form>
+  }
+
+  @if (loading()) {
+    <div class="empty-page">Loading people…</div>
+  } @else {
+    <div class="data-table people-table" role="table" aria-label="Employees">
+      <div class="table-row table-head" role="row">
+        <span>Employee</span>
+        <span>Email</span>
+        <span>Status</span>
+        <span>Scheduling</span>
+        <span></span>
+      </div>
+      @for (person of people(); track person.id) {
+        <div class="table-row" role="row" [class.is-muted]="person.status !== 'active'">
+          <span class="person-cell">
+            <i [style.background]="person.accent">{{ person.initials }}</i>
+            <strong>{{ person.name }}</strong>
+          </span>
+          <span>{{ person.email }}</span>
+          <span class="status-pill" [class.inactive]="person.status !== 'active'">{{ statusLabel(person.status) }}</span>
+          <span>{{ person.scheduleEligible ? 'Eligible' : 'Not eligible' }}</span>
+          <span class="row-actions">
+            <button class="button secondary" type="button" (click)="startEdit(person)">Edit</button>
+            <button
+              class="button secondary danger"
+              type="button"
+              [disabled]="person.status === 'deactivated' || saving()"
+              (click)="deactivate(person)"
+            >
+              Deactivate
+            </button>
+          </span>
+        </div>
+      }
+    </div>
+  }
+</section>

@@ -1,0 +1,39 @@
+<section class="content-page requests-page">
+  <header class="page-heading">
+    <div><h1>Shift requests</h1><p>Review employee swap requests before they change the draft schedule.</p></div>
+    <span>{{ pendingCount() }} pending</span>
+  </header>
+
+  @if (shiftRequests.error()) { <p class="inline-error" role="alert">{{ shiftRequests.error() }}</p> }
+  @if (actionError()) { <p class="inline-error" role="alert">{{ actionError() }}</p> }
+
+  @if (shiftRequests.loading()) {
+    <div class="empty-page">Loading requests…</div>
+  } @else if (!shiftRequests.requests().length) {
+    <div class="empty-page">No shift requests yet.</div>
+  } @else {
+    <div class="request-list">
+      @for (request of shiftRequests.requests(); track request.id) {
+        <article class="request-row">
+          <div class="request-person">
+            <strong>{{ request.requestedByName }}</strong>
+            <span class="request-status" [class.pending]="request.status === 'pending'">{{ request.status }}</span>
+          </div>
+          @if (request.requestType === 'open_claim') {
+            <div class="claim-route"><small>Claims open shift</small><strong>{{ dateTime(request.sourceDate, request.sourceStart, request.sourceEnd) }}</strong><span>{{ request.sourceNote || 'Open shift' }}</span></div>
+          } @else {
+            <div class="swap-route"><div><small>Gives</small><strong>{{ dateTime(request.sourceDate, request.sourceStart, request.sourceEnd) }}</strong><span>{{ request.sourceNote || 'Scheduled' }}</span></div><b aria-hidden="true">→</b><div><small>Receives from {{ request.targetEmployeeName }}</small><strong>{{ dateTime(request.targetDate!, request.targetStart!, request.targetEnd!) }}</strong><span>{{ request.targetNote || 'Scheduled' }}</span></div></div>
+          }
+          @if (request.status === 'pending') {
+            <div class="request-actions">
+              <button class="button secondary" type="button" [disabled]="actingOn() === request.id" (click)="decide(request, 'reject')">Reject</button>
+              <button class="button primary" type="button" [disabled]="actingOn() === request.id" (click)="decide(request, 'approve')">{{ actingOn() === request.id ? 'Working…' : 'Approve' }}</button>
+            </div>
+          } @else if (request.status === 'approved') {
+            <p class="publish-note">{{ request.requestType === 'open_claim' ? 'Assigned in the draft schedule. Publish when ready.' : 'Applied to the draft schedule. Publish when ready.' }}</p>
+          }
+        </article>
+      }
+    </div>
+  }
+</section>

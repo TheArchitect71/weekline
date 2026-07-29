@@ -1,0 +1,63 @@
+<main class="worker-shell">
+  <header>
+    <div class="brand-mark">W</div>
+    <div>
+      <p>Weekline</p>
+      <h1>My schedule</h1>
+    </div>
+    <button class="avatar-button" type="button" title="Open profile" (click)="profileRequested.emit()">{{ currentEmployee.initials }}</button>
+  </header>
+
+  <section class="week-nav" aria-label="Week navigation">
+    <button type="button" aria-label="Previous week" (click)="previousWeekRequested.emit()">‹</button>
+    <strong>{{ weekLabel() }}</strong>
+    <button type="button" aria-label="Next week" (click)="nextWeekRequested.emit()">›</button>
+  </section>
+
+  @if (changedCount()) {
+    <div class="change-notice">
+      <span>!</span>
+      <p><strong>{{ changedCount() }} {{ changedCount() === 1 ? 'shift' : 'shifts' }} changed</strong><small>Review the highlighted schedule updates.</small></p>
+    </div>
+  } @else {
+    <div class="published-notice">
+      <span>✓</span>
+      <p><strong>You are up to date</strong><small>No changes since the last publication.</small></p>
+    </div>
+  }
+
+  <section class="days">
+    @for (day of days; track day.date; let dayIndex = $index) {
+      @let shift = shiftFor(dayIndex);
+      @let leave = leaveFor(dayIndex);
+      <article [class.today]="dayIndex === 3" [class.changed]="shift?.changed" [class.on-leave]="!!leave" [class.hidden-change]="changesFocused() && !shift?.changed">
+        <div class="day-label">
+          <span>{{ day.short }}</span>
+          <strong>{{ day.date }}</strong>
+          @if (holidayFor(dayIndex); as holiday) { <small>{{ holiday.name }}</small> }
+        </div>
+        @if (shift) {
+          <div class="shift-details">
+            <strong>{{ displayTime(shift.start) }} – {{ displayTime(shift.end) }}</strong>
+            <span>{{ shift.note }}</span>
+            @if (coworkersFor(shift).length) {
+              <small>With {{ coworkersFor(shift).join(', ') }}</small>
+            }
+          </div>
+          @if (shift.changed) { <span class="changed-label">Changed</span> }
+        } @else {
+          <p class="off">{{ leave ? leave.leaveTypeName : 'No shift' }}</p>
+        }
+        @if (leave && shift) { <span class="leave-warning">{{ leave.leaveTypeName }}</span> }
+      </article>
+    }
+  </section>
+
+  <nav class="mobile-nav" aria-label="Worker navigation">
+    <button [class.active]="!changesFocused()" type="button" (click)="changesFocused.set(false)"><span>▦</span>Schedule</button>
+    <button type="button" (click)="requestsRequested.emit()"><span>⇄</span>Requests</button>
+    <button type="button" (click)="leaveRequested.emit()"><span>◷</span>Time off</button>
+    <button type="button" (click)="availabilityRequested.emit()"><span>◴</span>Availability</button>
+    <button type="button" (click)="profileRequested.emit()"><span>◉</span>Profile</button>
+  </nav>
+</main>

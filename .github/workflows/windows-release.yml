@@ -1,0 +1,72 @@
+name: Windows release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version-file: .deno-version
+      - name: Download official Caddy for Windows
+        shell: pwsh
+        run: |
+          $version = "2.11.4"
+          $base = "https://github.com/caddyserver/caddy/releases/download/v$version"
+          $asset = "caddy_${version}_windows_amd64.zip"
+          Invoke-WebRequest "$base/$asset" -OutFile "$env:RUNNER_TEMP\caddy.zip"
+          Invoke-WebRequest "$base/caddy_${version}_checksums.txt" -OutFile "$env:RUNNER_TEMP\caddy-checksums.txt"
+          $expected = ((Select-String -Path "$env:RUNNER_TEMP\caddy-checksums.txt" -Pattern "  $asset$").Line -split '\s+')[0]
+          $actual = (Get-FileHash "$env:RUNNER_TEMP\caddy.zip" -Algorithm SHA512).Hash.ToLower()
+          if (-not $expected -or $actual -ne $expected) { throw "Caddy checksum verification failed." }
+          Expand-Archive "$env:RUNNER_TEMP\caddy.zip" -DestinationPath "$env:RUNNER_TEMP\caddy"
+      - name: Confirm tag matches VERSION
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $expected = "v$((Get-Content VERSION -Raw).Trim())"
+          if ($env:GITHUB_REF_NAME -ne $expected) { throw "Tag $env:GITHUB_REF_NAME does not match VERSION ($expected)." }
+      - name: Build release directory
+        shell: pwsh
+        run: .\deploy\windows\build-release.ps1 -CaddyExecutable "$env:RUNNER_TEMP\caddy\caddy.exe"
+      - name: Create release archive and checksum
+        shell: pwsh
+        run: |
+          $version = (Get-Content VERSION -Raw).Trim()
+          $archive = "Weekline-windows-$version.zip"
+          Compress-Archive -Path "dist\windows\*" -DestinationPath $archive
+          (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower() + "  " + $archive | Set-Content "$archive.sha256" -Encoding ascii
+          "ARCHIVE=$archive" | Out-File $env:GITHUB_ENV -Append
+      - uses: actions/upload-artifact@v7
+        with:
+          name: weekline-windows
+          path: |
+            ${{ env.ARCHIVE }}
+            ${{ env.ARCHIVE }}.sha256
+      - name: Publish tagged GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$env:GITHUB_REF_NAME" $env:ARCHIVE "$env:ARCHIVE.sha256" --prerelease --generate-notes --title "Weekline $env:GITHUB_REF_NAME"

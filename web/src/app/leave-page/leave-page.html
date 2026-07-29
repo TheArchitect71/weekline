@@ -1,0 +1,66 @@
+<section class="content-page leave-page">
+  <header class="page-heading">
+    <div><h1>Time off</h1><p>Review requests, maintain balances, and mark company holidays.</p></div>
+    <div class="page-actions"><span>{{ pendingCount() }} pending</span><button class="button primary" type="button" (click)="requestFormOpen = !requestFormOpen">＋ Request leave</button></div>
+  </header>
+
+  @if (leave.error()) { <p class="inline-error" role="alert">{{ leave.error() }}</p> }
+  @if (actionError()) { <p class="inline-error" role="alert">{{ actionError() }}</p> }
+
+  @if (requestFormOpen) {
+    <form class="leave-form" (ngSubmit)="createRequest()">
+      <header><div><h2>Create leave request</h2><p>Managers can enter a request on behalf of an employee.</p></div><button type="button" aria-label="Close leave form" (click)="requestFormOpen = false">×</button></header>
+      <div class="form-grid">
+        <label>Employee<select name="employee" [(ngModel)]="requestForm.employeeId" required><option value="">Choose employee</option>@for (employee of schedule.employees(); track employee.id) { <option [value]="employee.id">{{ employee.name }}</option> }</select></label>
+        <label>Leave type<select name="leaveType" [(ngModel)]="requestForm.leaveTypeId" required><option value="">Choose type</option>@for (type of leave.types(); track type.id) { <option [value]="type.id">{{ type.name }}</option> }</select></label>
+        <label>Start date<input name="startsOn" type="date" [(ngModel)]="requestForm.startsOn" required /></label>
+        <label>End date<input name="endsOn" type="date" [(ngModel)]="requestForm.endsOn" required /></label>
+        <label>Hours per day<input name="hoursPerDay" type="number" min="0.25" max="24" step="0.25" [(ngModel)]="requestForm.hoursPerDay" required /></label>
+        <label>Reason<input name="reason" maxlength="240" [(ngModel)]="requestForm.reason" /></label>
+      </div>
+      <footer><button class="button primary" type="submit" [disabled]="acting() === 'request'">{{ acting() === 'request' ? 'Creating…' : 'Create request' }}</button></footer>
+    </form>
+  }
+
+  <section class="leave-section" aria-labelledby="requests-heading">
+    <div class="section-heading"><div><h2 id="requests-heading">Requests and leave calendar</h2><p>Approved leave appears directly on the weekly schedule.</p></div></div>
+    @if (leave.loading()) { <div class="empty-page">Loading time off…</div> }
+    @else if (!leave.requests().length) { <div class="empty-page compact">No leave requests yet.</div> }
+    @else {
+      <div class="leave-request-list">
+        @for (request of leave.requests(); track request.id) {
+          <article>
+            <div><strong>{{ request.employeeName }}</strong><span class="status-pill" [class.inactive]="request.status !== 'approved'">{{ request.status }}</span></div>
+            <div><strong>{{ request.leaveTypeName }}</strong><span>{{ dateRange(request) }} · {{ request.requestedHours }}h</span><small>{{ request.reason || 'No reason provided' }}</small></div>
+            @if (request.conflictingShiftCount) { <p class="conflict-note">{{ request.conflictingShiftCount }} scheduled {{ request.conflictingShiftCount === 1 ? 'shift overlaps' : 'shifts overlap' }}</p> }
+            @if (request.status === 'pending') {
+              <div class="row-actions"><button class="button secondary" type="button" [disabled]="acting() === request.id" (click)="decide(request, 'reject')">Reject</button><button class="button primary" type="button" [disabled]="acting() === request.id" (click)="decide(request, 'approve')">Approve</button></div>
+            } @else if (request.status === 'approved') {
+              <div class="row-actions"><button class="button secondary danger" type="button" [disabled]="acting() === request.id" (click)="cancelApproved(request)">Cancel leave</button></div>
+            }
+          </article>
+        }
+      </div>
+    }
+  </section>
+
+  <section class="leave-section" aria-labelledby="balances-heading">
+    <div class="section-heading"><div><h2 id="balances-heading">Leave balances</h2><p>Allocation, usage, and remaining hours for paid leave.</p></div></div>
+    <div class="balance-table">
+      @for (balance of leave.balances(); track balanceKey(balance)) {
+        <div class="balance-row"><strong>{{ balance.employeeName }}</strong><span>{{ balance.leaveTypeName }}</span><span>{{ balance.usedHours }}h used</span><label><span class="sr-only">Total hours</span><input type="number" min="0" step="0.25" [ngModel]="balanceValue(balance)" (ngModelChange)="setBalanceDraft(balance, $event)" /></label><button class="button secondary" type="button" [disabled]="acting() === balanceKey(balance)" (click)="saveBalance(balance)">Save</button></div>
+      }
+    </div>
+  </section>
+
+  <section class="leave-section" aria-labelledby="holidays-heading">
+    <div class="section-heading"><div><h2 id="holidays-heading">Public holidays</h2><p>Company holidays are shown in schedule headers.</p></div><button class="button secondary" type="button" (click)="holidayFormOpen = !holidayFormOpen">＋ Add holiday</button></div>
+    @if (holidayFormOpen) {
+      <form class="holiday-form" (ngSubmit)="addHoliday()"><label>Date<input name="holidayDate" type="date" [(ngModel)]="holidayForm.date" required /></label><label>Name<input name="holidayName" maxlength="80" [(ngModel)]="holidayForm.name" required /></label><label class="check-row"><input name="holidayPaid" type="checkbox" [(ngModel)]="holidayForm.paid" /> Paid holiday</label><button class="button primary" type="submit" [disabled]="acting() === 'holiday'">Add</button></form>
+    }
+    <div class="holiday-list">
+      @for (holiday of leave.holidays(); track holiday.id) { <div><span><strong>{{ holiday.name }}</strong><small>{{ dateLabel(holiday.date) }} · {{ holiday.paid ? 'Paid' : 'Unpaid' }}</small></span><button type="button" aria-label="Remove holiday" (click)="deleteHoliday(holiday.id)">×</button></div> }
+      @if (!leave.holidays().length) { <p>No company holidays have been added.</p> }
+    </div>
+  </section>
+</section>

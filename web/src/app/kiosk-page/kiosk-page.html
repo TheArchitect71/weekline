@@ -1,0 +1,19 @@
+<div class="desktop-required">Station display required.</div>
+<main class="kiosk-screen">
+  <header><div class="brand"><span>W</span><div><strong>Weekline</strong><small>{{ session()?.stationName || 'Attendance station' }}</small></div></div><div class="clock"><strong>{{ timeLabel() }}</strong><span>{{ dateLabel() }}</span></div><div class="network" [class.queued]="queuedCount()">{{ queuedCount() ? queuedCount() + ' queued' : 'Online' }}</div></header>
+
+  @if (error()) { <p class="kiosk-message error" role="alert">{{ error() }}</p> }
+  @if (status()) { <p class="kiosk-message success" role="status">{{ status() }}</p> }
+
+  @if (session(); as kiosk) {
+    <section class="employee-grid" aria-label="Employees">
+      @for (employee of kiosk.employees; track employee.id) {
+        <button type="button" [class.selected]="selected()?.id === employee.id" (click)="choose(employee)"><span>{{ employee.displayName.slice(0, 1) }}</span><strong>{{ employee.displayName }}</strong><small>{{ employee.lastEventType ? 'Last: clock ' + employee.lastEventType : 'No punch today' }}</small></button>
+      }
+    </section>
+  } @else if (!error()) { <div class="loading">Loading station…</div> }
+
+  @if (selected(); as employee) {
+    <section class="punch-panel" aria-label="Punch confirmation"><button class="close" type="button" aria-label="Cancel" (click)="selected.set(null)">×</button><div><span>{{ employee.displayName.slice(0, 1) }}</span><h1>{{ employee.displayName }}</h1><p>{{ timeLabel() }}</p></div><div class="punch-actions"><button class="clock-in" type="button" [disabled]="sending()" (click)="punch('in')">Clock in</button><button class="clock-out" type="button" [disabled]="sending()" (click)="punch('out')">Clock out</button></div></section>
+  }
+</main>

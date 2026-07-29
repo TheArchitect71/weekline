@@ -1,0 +1,4 @@
+<main class="worker-profile">
+  <header><a routerLink="/my-schedule" aria-label="Back to schedule">‹</a><h1>Profile</h1><span></span></header>
+  <section><div class="avatar">{{ initials(user()?.displayName ?? 'Worker') }}</div><h2>{{ user()?.displayName }}</h2><p>{{ user()?.email }}</p><dl><div><dt>Account type</dt><dd>Worker</dd></div><div><dt>Schedule access</dt><dd>Your shifts and matching coworkers</dd></div></dl><button class="button secondary" type="button" (click)="logout()">Sign out</button></section>
+</main>

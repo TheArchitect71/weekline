@@ -1,0 +1,85 @@
+<aside class="editor" aria-labelledby="editor-title">
+  <header>
+    <div>
+      <p class="section-label">{{ isNew ? 'New assignment' : 'Selected assignment' }}</p>
+      <h2 id="editor-title">{{ isNew ? 'Add shift' : 'Edit shift' }}</h2>
+    </div>
+    <button class="icon-button" type="button" aria-label="Close editor" (click)="closed.emit()">×</button>
+  </header>
+
+  <form (ngSubmit)="submit()">
+    <label>
+      Employee
+      <select name="employee" [(ngModel)]="draft.employeeId" (ngModelChange)="changed.emit()" required>
+        @for (employee of employees; track employee.id) {
+          <option [value]="employee.id">{{ employee.name }}</option>
+        }
+      </select>
+    </label>
+
+    <label>
+      Date
+      <select name="day" [(ngModel)]="draft.dayIndex" (ngModelChange)="changed.emit()" required>
+        @for (day of days; track day.date; let index = $index) {
+          <option [ngValue]="index">{{ day.label }}, {{ day.date }}</option>
+        }
+      </select>
+    </label>
+
+    <div class="time-row">
+      <label>
+        Start time
+        <input name="start" type="time" [(ngModel)]="draft.start" (ngModelChange)="changed.emit()" required />
+      </label>
+      <label>
+        End time
+        <input name="end" type="time" [(ngModel)]="draft.end" (ngModelChange)="changed.emit()" required />
+      </label>
+    </div>
+    @if (!isTimeRangeValid()) {
+      <p class="field-error" role="alert">End time must be later than start time.</p>
+    }
+
+    <label>
+      Notes <span>(optional)</span>
+      <textarea name="note" maxlength="120" rows="5" [(ngModel)]="draft.note" (ngModelChange)="changed.emit()"></textarea>
+      <small>{{ draft.note.length }} / 120</small>
+    </label>
+
+    @if (conflicts.length) {
+      <section class="conflict-list" aria-label="Shift conflicts">
+        <strong>Review before saving</strong>
+        @for (conflict of conflicts; track conflict.code + conflict.message) {
+          <div [class.blocking]="conflict.severity === 'blocking'">
+            <span>{{ conflict.severity === 'blocking' ? '!' : 'i' }}</span>
+            <p><b>{{ conflict.severity === 'blocking' ? 'Blocking' : 'Warning' }}</b>{{ conflict.message }}</p>
+          </div>
+        }
+      </section>
+    }
+
+    <footer>
+      @if (!isNew) {
+        <button class="button danger" type="button" (click)="requestDelete()">Delete</button>
+      }
+      <button class="button secondary" type="button" (click)="closed.emit()">Cancel</button>
+      @if (conflicts.length) {
+        <button class="button primary" type="button" [disabled]="hasUnresolvableConflict() || saving" (click)="confirmed.emit()">
+          {{ hasUnresolvableConflict() ? 'Resolve conflict' : (saving ? 'Saving…' : 'Save anyway') }}
+        </button>
+      } @else {
+        <button class="button primary" type="submit" [disabled]="!isTimeRangeValid() || saving">{{ saving ? 'Checking…' : 'Save shift' }}</button>
+      }
+    </footer>
+  </form>
+
+  @if (!isNew) {
+    <section class="audit-note" aria-label="Shift change history">
+      <i></i>
+      <div>
+        <strong>Changed</strong>
+        <p>This shift was updated today at 9:21 AM by Marisol Vega.</p>
+      </div>
+    </section>
+  }
+</aside>

@@ -1,0 +1,35 @@
+<section class="content-page attendance-page">
+  <header class="page-heading"><div><h1>Attendance</h1><p>Review station events, regularization requests, and kiosk access.</p></div></header>
+  @if (actionError() || attendance.error()) { <p class="inline-error" role="alert">{{ actionError() || attendance.error() }}</p> }
+
+  <nav class="tabs" aria-label="Attendance views">
+    <button type="button" [class.active]="activeTab() === 'records'" (click)="activeTab.set('records')">Daily records</button>
+    <button type="button" [class.active]="activeTab() === 'corrections'" (click)="activeTab.set('corrections')">Corrections <span>{{ pendingCorrectionCount() }}</span></button>
+    <button type="button" [class.active]="activeTab() === 'stations'" (click)="activeTab.set('stations')">Stations</button>
+  </nav>
+
+  @if (activeTab() === 'records') {
+    <form class="record-filters" (ngSubmit)="loadRecords()"><label>From<input name="from" type="date" [(ngModel)]="from" required /></label><label>To<input name="to" type="date" [(ngModel)]="to" required /></label><label>Employee<select name="employee" [(ngModel)]="employeeId"><option value="">All employees</option>@for (employee of schedule.employees(); track employee.id) { <option [value]="employee.id">{{ employee.name }}</option> }</select></label><button class="button secondary" type="submit">Apply</button></form>
+    <div class="attendance-table" role="table" aria-label="Daily attendance">
+      <div class="table-head" role="row"><span>Employee</span><span>Date</span><span>Scheduled</span><span>Clock in</span><span>Clock out</span><span>Hours</span><span>Status</span></div>
+      @if (attendance.loading()) { <p class="empty">Loading attendance…</p> }
+      @else if (!attendance.records().length) { <p class="empty">No schedule or punch records in this range.</p> }
+      @else { @for (record of attendance.records(); track record.employeeId + record.date) { <div class="table-row" role="row"><strong>{{ record.employeeName }}</strong><span>{{ dateLabel(record.date) }}</span><span>{{ time(record.scheduledStart) }}–{{ time(record.scheduledEnd) }}</span><span>{{ time(record.clockIn) }}</span><span>{{ time(record.clockOut) }}</span><span>{{ record.workedHours }}h</span><b [class.complete]="record.status === 'complete'">{{ statusLabel(record.status) }}</b></div> } }
+    </div>
+  }
+
+  @if (activeTab() === 'corrections') {
+    <section class="correction-list">
+      @if (!attendance.corrections().length) { <p class="empty">No attendance corrections.</p> }
+      @else { @for (correction of attendance.corrections(); track correction.id) { <article><div><strong>{{ correction.employeeName }} · {{ dateLabel(correction.date) }}</strong><span>{{ time(correction.clockIn) }}–{{ time(correction.clockOut) }}</span><p>{{ correction.reason }}</p></div><b [class.pending]="correction.status === 'pending'">{{ correction.status }}</b>@if (correction.status === 'pending') { <div class="row-actions"><button class="button secondary" type="button" [disabled]="!!acting()" (click)="decide(correction, 'reject')">Reject</button><button class="button primary" type="button" [disabled]="!!acting()" (click)="decide(correction, 'approve')">Approve</button></div> }</article> } }
+    </section>
+  }
+
+  @if (activeTab() === 'stations') {
+    <form class="station-form" (ngSubmit)="createStation()"><label>Station name<input name="stationName" maxlength="80" placeholder="Front desk kiosk" [(ngModel)]="stationName" required /></label><button class="button primary" type="submit" [disabled]="acting() === 'station' || !stationName.trim()">Create station</button></form>
+    <section class="station-list">
+      @if (!attendance.stations().length) { <p class="empty">No attendance stations configured.</p> }
+      @else { @for (station of attendance.stations(); track station.id) { <article><div><strong>{{ station.name }}</strong><span>{{ station.active ? 'Active' : 'Inactive' }}</span></div><div class="row-actions"><button class="button secondary" type="button" [disabled]="!!acting()" (click)="toggleStation(station)">{{ station.active ? 'Deactivate' : 'Activate' }}</button><button class="button primary" type="button" [disabled]="!!acting() || !station.active" (click)="openKiosk(station)">{{ attendance.tokenFor(station.id) ? 'Open kiosk' : 'Set access and open' }}</button></div></article> } }
+    </section>
+  }
+</section>

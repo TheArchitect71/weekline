@@ -1,0 +1,25 @@
+<main class="worker-attendance">
+  <header><a routerLink="/my-schedule" aria-label="Back to schedule">‹</a><div><p>Weekline</p><h1>My attendance</h1></div><span></span></header>
+  @if (actionError() || attendance.error()) { <p class="form-error" role="alert">{{ actionError() || attendance.error() }}</p> }
+
+  <section class="attendance-list">
+    <h2>This week</h2>
+    @if (attendance.loading()) { <p class="empty">Loading attendance…</p> }
+    @else if (!attendance.records().length) { <p class="empty">No scheduled shifts or punches this week.</p> }
+    @else { @for (record of attendance.records(); track record.date) { <article><div><strong>{{ dateLabel(record.date) }}</strong><span>Scheduled {{ time(record.scheduledStart) }}–{{ time(record.scheduledEnd) }}</span></div><div><b>{{ time(record.clockIn) }}–{{ time(record.clockOut) }}</b><small [class.complete]="record.status === 'complete'">{{ statusText(record) }}</small></div></article> } }
+  </section>
+
+  <form class="correction-form" (ngSubmit)="submit()">
+    <div><h2>Correct a missed punch</h2><p>Enter the complete time pair for manager review.</p></div>
+    <label>Date<input name="date" type="date" [(ngModel)]="form.date" required /></label>
+    <div class="time-row"><label>Clock in<input name="clockIn" type="time" [(ngModel)]="form.clockIn" required /></label><label>Clock out<input name="clockOut" type="time" [(ngModel)]="form.clockOut" required /></label></div>
+    <label>Reason<textarea name="reason" rows="3" minlength="3" maxlength="240" [(ngModel)]="form.reason" required></textarea></label>
+    <button class="button primary" type="submit" [disabled]="acting() || form.reason.trim().length < 3">{{ acting() ? 'Sending…' : 'Send correction' }}</button>
+  </form>
+
+  <section class="correction-history">
+    <h2>Correction history</h2>
+    @if (!attendance.corrections().length) { <p class="empty">No correction requests.</p> }
+    @else { @for (correction of attendance.corrections(); track correction.id) { <article><div><strong>{{ dateLabel(correction.date) }} · {{ time(correction.clockIn) }}–{{ time(correction.clockOut) }}</strong><span>{{ correction.reason }}</span></div><b [class.pending]="correction.status === 'pending'">{{ correction.status }}</b>@if (correction.status === 'pending') { <button type="button" [disabled]="acting()" (click)="cancel(correction)">Cancel</button> }</article> } }
+  </section>
+</main>

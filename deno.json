@@ -1,0 +1,18 @@
+{
+  "desktop": {
+    "app": {
+      "name": "Weekline Manager",
+      "identifier": "org.wornoutassist.weekline.manager"
+    },
+    "backend": "cef",
+    "output": {
+      "windows": "dist/windows/WeeklineManager.msi"
+    }
+  },
+  "tasks": {
+    "desktop:check": "deno desktop --backend raw --target x86_64-pc-windows-msvc --allow-env --allow-read --allow-net --allow-sys=hostname --output dist/check/WeeklineManager.msi desktop/main.ts",
+    "desktop:test": "deno test --allow-net desktop/heartbeat_test.ts",
+    "desktop:dev": "deno desktop --backend cef --allow-env --allow-read --allow-net --allow-sys=hostname desktop/main.ts",
+    "desktop:build:windows": "deno desktop --backend cef --target x86_64-pc-windows-msvc --allow-env --allow-read --allow-net --allow-sys=hostname --output dist/windows/WeeklineManager.msi desktop/main.ts"
+  }
+}

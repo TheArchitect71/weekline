@@ -1,0 +1,43 @@
+<div class="schedule-page" [class.with-editor]="editorOpen()">
+  <section class="schedule-region">
+    @if (schedule.error()) { <div class="page-notice error" role="alert">{{ schedule.error() }}</div> }
+    @if (dragError()) { <div class="page-notice error" role="alert">{{ dragError() }}</div> }
+    @if (dragMessage()) { <div class="page-notice" role="status">{{ dragMessage() }}</div> }
+    @if (schedule.loading()) {
+      <div class="loading-state">Loading schedule…</div>
+    } @else {
+      <app-manager-schedule
+        [shifts]="schedule.shifts()"
+        [employees]="schedule.employees()"
+        [days]="schedule.days()"
+        [leave]="schedule.leave()"
+        [holidays]="schedule.holidays()"
+        [openShifts]="schedule.openShifts()"
+        [conflicts]="schedule.conflicts()"
+        [availability]="schedule.availability()"
+        [selectedShiftId]="selectedShiftId()"
+        (shiftSelected)="selectShift($event)"
+        (emptySelected)="createShift($event)"
+        (shiftDropped)="handleShiftDrop($event)"
+      />
+    }
+  </section>
+  @if (editorOpen()) {
+    <section class="editor-region">
+      @if (saveError()) { <div class="editor-error" role="alert">{{ saveError() }}</div> }
+      <app-shift-editor
+        [draft]="draft()"
+        [employees]="schedule.employees()"
+        [days]="schedule.days()"
+        [isNew]="isCreating()"
+        [conflicts]="preflightConflicts()"
+        [saving]="saving()"
+        (closed)="editorOpen.set(false)"
+        (saved)="saveShift($event)"
+        (changed)="clearConflictResults()"
+        (confirmed)="confirmConflictSave()"
+        (deleted)="deleteShift()"
+      />
+    </section>
+  }
+</div>

@@ -1,0 +1,45 @@
+<div class="app-shell">
+  <header class="topbar">
+    <a class="brand" routerLink="/schedule" aria-label="Weekline schedule"><span>W</span>Weekline</a>
+    <div class="week-controls">
+      <button class="icon-control" type="button" aria-label="Previous week" (click)="moveWeek(-1)">‹</button>
+      <div class="week-picker"><span>▦</span> {{ weekLabel() }}</div>
+      <button class="icon-control" type="button" aria-label="Next week" (click)="moveWeek(1)">›</button>
+      @if (!isCurrentWeek()) {
+        <button class="today-control" type="button" (click)="goToCurrentWeek()">Today</button>
+      }
+    </div>
+    <div class="top-actions">
+      <a class="worker-preview" routerLink="/worker-preview">Worker preview</a>
+      <div class="draft-state" [class.published]="!hasUnpublishedChanges()">
+        <i></i><span><strong>{{ hasUnpublishedChanges() ? 'Draft' : 'Published' }}</strong><small>{{ hasUnpublishedChanges() ? 'Changes not published' : 'Visible to workers' }}</small></span>
+      </div>
+      <button class="button primary publish" type="button" [disabled]="!hasUnpublishedChanges() || publishing" (click)="publish()">{{ publishing ? 'Publishing…' : publishLabel() }}</button>
+      <a class="profile" routerLink="/profile"><span>{{ userInitials() }}</span>{{ user()?.displayName }}</a>
+    </div>
+  </header>
+
+  @if (publishError()) {
+    <div class="publish-error" role="alert">{{ publishError() }}</div>
+  }
+
+  <aside class="sidebar">
+    <nav aria-label="Main navigation">
+      <a routerLink="/schedule" routerLinkActive="active"><span>▦</span>Schedule</a>
+      <a routerLink="/people" routerLinkActive="active"><span>♙</span>People</a>
+      <a routerLink="/requests" routerLinkActive="active"><span>⇄</span>Requests</a>
+      <a routerLink="/leave" routerLinkActive="active"><span>◷</span>Time off</a>
+      <a routerLink="/coverage" routerLinkActive="active"><span>◫</span>Coverage</a>
+      <a routerLink="/availability" routerLinkActive="active"><span>◴</span>Availability</a>
+      <a routerLink="/history" routerLinkActive="active"><span>↶</span>History</a>
+    </nav>
+    <nav class="lower-nav" aria-label="Support navigation">
+      <a routerLink="/help" routerLinkActive="active"><span>?</span>Help</a>
+      <a routerLink="/settings" routerLinkActive="active"><span>⚙</span>Settings</a>
+    </nav>
+  </aside>
+
+  <main class="route-panel">
+    <router-outlet />
+  </main>
+</div>

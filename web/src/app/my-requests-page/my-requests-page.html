@@ -1,0 +1,48 @@
+<main class="worker-requests">
+  <header>
+    <a routerLink="/my-schedule" aria-label="Back to schedule">‹</a>
+    <div><p>Weekline</p><h1>Shift requests</h1></div>
+    <span></span>
+  </header>
+
+  <section class="open-shifts" aria-labelledby="open-shifts-heading">
+    <div><h2 id="open-shifts-heading">Open shifts</h2><p>Claim an available position for manager approval.</p></div>
+    @if (!schedule.openShifts().length) { <p class="empty compact">No published open shifts this week.</p> }
+    @for (openShift of schedule.openShifts(); track openShift.id) {
+      <article><div><strong>{{ dateLabel(openShift.date) }} · {{ time(openShift.start) }}–{{ time(openShift.end) }}</strong><span>{{ openShift.note || 'Open shift' }} · {{ openShift.coverageGap }} {{ openShift.coverageGap === 1 ? 'position' : 'positions' }} open</span></div><button class="button secondary" type="button" [disabled]="openShift.status !== 'open' || openShift.claimStatus === 'pending' || submitting()" (click)="claimOpenShift(openShift.id)">{{ openShift.claimStatus === 'pending' ? 'Claim pending' : openShift.claimStatus === 'approved' ? 'Approved' : 'Claim shift' }}</button></article>
+    }
+  </section>
+
+  <section class="request-form" aria-labelledby="new-request-heading">
+    <div><h2 id="new-request-heading">Request a swap</h2><p>Choose one of your shifts, then an eligible coworker shift.</p></div>
+    @if (actionError()) { <p class="form-error" role="alert">{{ actionError() }}</p> }
+    <label>Your shift
+      <select name="sourceShift" [ngModel]="sourceShiftId()" (ngModelChange)="sourceShiftId.set($event); sourceChanged()">
+        <option value="">Choose a shift</option>
+        @for (shift of ownShifts(); track shift.id) { <option [value]="shift.id">{{ shiftLabel(shift) }}</option> }
+      </select>
+    </label>
+    <label>Swap with
+      <select name="targetShift" [ngModel]="targetShiftId()" (ngModelChange)="targetShiftId.set($event)" [disabled]="!sourceShiftId() || loadingOptions()">
+        <option value="">{{ loadingOptions() ? 'Finding eligible shifts…' : options().length ? 'Choose a coworker shift' : sourceShiftId() ? 'No eligible shifts found' : 'Choose your shift first' }}</option>
+        @for (option of options(); track option.shiftId) { <option [value]="option.shiftId">{{ optionLabel(option) }}</option> }
+      </select>
+    </label>
+    <button class="button primary" type="button" [disabled]="!targetShiftId() || submitting()" (click)="submit()">{{ submitting() ? 'Sending…' : 'Send request' }}</button>
+  </section>
+
+  <section class="request-history">
+    <h2>Request history</h2>
+    @if (shiftRequests.loading()) { <p class="empty">Loading requests…</p> }
+    @else if (!shiftRequests.requests().length) { <p class="empty">You have not requested a shift change yet.</p> }
+    @else {
+      @for (request of shiftRequests.requests(); track request.id) {
+        <article>
+          <div><strong>{{ requestSummary(request) }}</strong><span>{{ statusMessage(request.status) }}</span></div>
+          <b [class.pending]="request.status === 'pending'">{{ request.status }}</b>
+          @if (request.status === 'pending') { <button type="button" (click)="cancel(request)" [disabled]="submitting()">Cancel</button> }
+        </article>
+      }
+    }
+  </section>
+</main>

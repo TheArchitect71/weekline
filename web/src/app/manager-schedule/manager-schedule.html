@@ -1,0 +1,82 @@
+<section class="workspace" aria-label="Weekly schedule">
+  <div class="schedule-toolbar">
+    <button class="button primary add-button" type="button" (click)="emptySelected.emit({ employeeId: 'elena', dayIndex: 0 })">
+      <span>＋</span> Add shift
+    </button>
+    <div class="toolbar-end">
+      <button class="button secondary" type="button" [class.active-filter]="filterChanged" (click)="filterChanged = !filterChanged">{{ filterChanged ? 'Show all' : 'Changed only' }}</button>
+      <button class="button secondary print" type="button" onclick="window.print()">Print</button>
+    </div>
+  </div>
+
+  <div class="grid-scroll">
+    <div class="schedule-grid">
+      <div class="corner heading-cell">Team member</div>
+      @for (day of days; track day.date; let dayIndex = $index) {
+        <div class="day heading-cell" [class.today]="dayIndex === 3">
+          <strong>{{ day.short }}</strong>
+          <span>{{ day.date }}</span>
+          @if (holiday(dayIndex); as holiday) { <small>{{ holiday.name }}</small> }
+          @if (coverageGap(dayIndex)) { <em>{{ coverageGap(dayIndex) }} open</em> }
+        </div>
+      }
+
+      @for (employee of filteredEmployees(); track employee.id) {
+        <div class="employee-cell">
+          <span class="avatar" [style.background]="employee.accent">{{ employee.initials }}</span>
+          <span><strong>{{ employee.name }}</strong><small>{{ weeklyHours(employee) }}h scheduled</small></span>
+        </div>
+        @for (day of days; track day.date; let dayIndex = $index) {
+          @let shift = getShift(employee.id, dayIndex);
+          @let leave = getLeave(employee.id, dayIndex);
+          @let availability = availabilityFor(employee.id, dayIndex);
+          <button
+            class="shift-cell"
+            type="button"
+            [class.today]="dayIndex === 3"
+            [class.selected]="shift?.id === selectedShiftId"
+            [class.has-shift]="!!shift"
+            [class.changed]="shift?.changed"
+            [class.on-leave]="!!leave"
+            [class.has-conflict]="!!shift && !!conflictsForShift(shift).length"
+            [class.unavailable]="availability?.kind === 'unavailable'"
+            [class.preferred]="availability?.kind === 'preferred'"
+            [class.dragging]="shift?.id === draggingShiftId"
+            [class.drop-target]="dropTarget === employee.id + ':' + dayIndex"
+            [attr.draggable]="shift ? 'true' : null"
+            [attr.aria-label]="shift ? 'Edit shift for ' + employee.name + ' on ' + day.label : 'Add shift for ' + employee.name + ' on ' + day.label"
+            (click)="shift ? shiftSelected.emit(shift) : emptySelected.emit({ employeeId: employee.id, dayIndex })"
+            (dragstart)="shift && dragStart($event, shift)"
+            (dragover)="dragOver($event, employee.id, dayIndex, shift)"
+            (dragleave)="dragLeave($event)"
+            (drop)="draggedShift() && drop($event, draggedShift()!, employee.id, dayIndex, shift)"
+            (dragend)="dragEnd()"
+          >
+            @if (leave) { <span class="leave-chip">{{ leave.leaveTypeName }}</span> }
+            @if (availability) { <span class="availability-chip" [class.preferred]="availability.kind === 'preferred'">{{ availability.kind === 'preferred' ? 'Preferred' : 'Unavailable' }} · {{ displayTime(availability.start) }}–{{ displayTime(availability.end) }}</span> }
+            @if (shift) {
+              <strong>{{ displayTime(shift.start) }}–{{ displayTime(shift.end) }}</strong>
+              <span>{{ shift.note || 'Scheduled' }}</span>
+              @if (shift.changed) { <i title="Changed shift"></i> }
+              @if (conflictsForShift(shift).length) {
+                <b class="conflict-marker" [class.blocking]="conflictsForShift(shift)[0].severity === 'blocking'" [title]="conflictLabel(shift)" aria-label="Schedule conflict">!</b>
+              }
+            } @else {
+              @if (!leave && !availability) { <span class="add-hint">＋</span> }
+            }
+          </button>
+        }
+      }
+      @if (filterChanged && !filteredEmployees().length) {
+        <div class="no-changes">No unpublished shift changes.</div>
+      }
+    </div>
+  </div>
+
+  <footer class="legend">
+    <span><i class="changed-dot"></i> Changed since publish</span>
+    @if (totalCoverageGap()) { <span class="coverage-legend">{{ totalCoverageGap() }} uncovered {{ totalCoverageGap() === 1 ? 'position' : 'positions' }}</span> }
+    <span>Times shown in America/Chicago</span>
+    <span>Drag to move · Option/Alt-drag to copy · drop on a shift to swap</span>
+  </footer>
+</section>

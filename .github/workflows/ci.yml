@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: api/go.mod
+          cache-dependency-path: api/go.sum
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version-file: .deno-version
+      - name: Test Go API
+        working-directory: api
+        run: go test ./...
+      - name: Vet Go API
+        working-directory: api
+        run: go vet ./...
+      - name: Install web dependencies
+        working-directory: web
+        run: pnpm install --frozen-lockfile
+      - name: Build web application
+        working-directory: web
+        run: pnpm build
+      - name: Audit production web dependencies
+        working-directory: web
+        run: pnpm audit --prod
+      - name: Check desktop formatting
+        run: deno fmt --check desktop deno.json
+      - name: Test desktop lease lifecycle
+        run: deno test --allow-net --allow-env --allow-read --allow-sys=hostname desktop

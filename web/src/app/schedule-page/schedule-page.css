@@ -1,0 +1,10 @@
+:host { display: block; min-height: calc(100vh - 72px); }
+.schedule-page { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); min-height: calc(100vh - 72px); }
+.schedule-page.with-editor { grid-template-columns: minmax(720px, 1fr) 360px; }
+.schedule-region, .editor-region { min-width: 0; }.editor-region { position: relative; }
+.page-notice { padding: 11px 20px; border-bottom: 1px solid var(--amber-border); background: var(--amber-soft); color: #7a4700; font-size: 12px; font-weight: 650; }
+.editor-error { position: absolute; z-index: 2; left: 26px; right: 26px; top: 76px; padding: 9px 11px; border: 1px solid #f5b5ad; border-radius: 6px; background: #fff1ef; color: #9d241b; font-size: 11px; }
+.loading-state { min-height: 400px; display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+@media (max-width: 1120px) { .schedule-page.with-editor { grid-template-columns: minmax(660px, 1fr) 330px; } }
+@media (max-width: 900px) { :host, .schedule-page { min-height: calc(100vh - 64px); }.schedule-page.with-editor { grid-template-columns: 1fr; }.editor-region { position: fixed; inset: 64px 0 0; z-index: 20; overflow-y: auto; background: #fff; } }
+@media print { .editor-region { display: none !important; }.schedule-page.with-editor { display: block; } }

@@ -1,0 +1,12 @@
+<section class="content-page">
+  <header class="page-heading"><div><h1>History</h1><p>A permanent record of scheduling changes and publications.</p></div></header>
+  @if (loading()) { <div class="empty-page">Loading history…</div> }
+  @else if (!events().length) { <div class="empty-page">No changes have been recorded yet.</div> }
+  @else {
+    <ol class="audit-list">
+      @for (event of events(); track event.id) {
+        <li><i></i><div><strong>{{ event.summary }}</strong><p>{{ event.actorName }} · {{ format(event.occurredAt) }}</p></div><span>{{ event.entityType }}</span></li>
+      }
+    </ol>
+  }
+</section>

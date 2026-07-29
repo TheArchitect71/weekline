@@ -1,0 +1,33 @@
+<main class="login-shell">
+  <section class="login-intro">
+    <a class="brand" href="/login"><span>W</span>Weekline</a>
+    <div>
+      <h1>The weekly schedule, without the spreadsheet handoff.</h1>
+      <p>Build, review, and publish one schedule that works on every company device.</p>
+    </div>
+    <small>Private company scheduling · America/Chicago</small>
+  </section>
+
+  <section class="login-panel" aria-labelledby="login-heading">
+    <form (ngSubmit)="submit()">
+      <div class="form-heading">
+        <h2 id="login-heading">Sign in</h2>
+        <p>Use your company Weekline account.</p>
+      </div>
+
+      @if (error) { <div class="form-error" role="alert">{{ error }}</div> }
+
+      <label>Email address<input name="email" type="email" autocomplete="username" [(ngModel)]="email" required /></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" [(ngModel)]="password" required /></label>
+      <button class="button primary submit" type="submit" [disabled]="submitting || !email || !password">{{ submitting ? 'Signing in…' : 'Sign in' }}</button>
+
+      <div class="demo-access">
+        <span>Local demo accounts</span>
+        <div>
+          <button type="button" (click)="useDemo('manager')">Use manager</button>
+          <button type="button" (click)="useDemo('worker')">Use worker</button>
+        </div>
+      </div>
+    </form>
+  </section>
+</main>

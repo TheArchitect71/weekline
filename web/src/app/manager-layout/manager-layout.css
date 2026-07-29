@@ -1,0 +1,32 @@
+:host { display: block; min-height: 100vh; }
+.app-shell { min-height: 100vh; display: grid; grid-template: 72px 1fr / 164px 1fr; background: var(--surface); }
+.topbar { grid-column: 1 / -1; display: flex; align-items: center; padding: 0 24px; gap: 28px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.96); z-index: 10; }
+.brand { display: flex; align-items: center; gap: 10px; width: 140px; color: var(--blue); font-size: 20px; font-weight: 800; letter-spacing: -.04em; text-decoration: none; }
+.brand span { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 7px; color: white; background: var(--blue); font-size: 15px; }
+.week-controls { display: flex; align-items: center; gap: 8px; }
+.icon-control { width: 34px; height: 34px; border: 0; border-radius: 6px; background: transparent; font-size: 24px; cursor: pointer; }
+.icon-control:hover { background: var(--surface-hover); }
+.today-control { height: 32px; padding: 0 11px; border: 1px solid var(--border); border-radius: 6px; color: var(--blue); background: #fff; font-size: 12px; font-weight: 700; cursor: pointer; }
+.today-control:hover { border-color: #b9cef9; background: var(--blue-soft); }
+.week-picker { height: 38px; display: flex; align-items: center; gap: 9px; color: var(--ink); font-size: 13px; font-weight: 700; }
+.week-picker span { font-size: 17px; color: var(--muted); }
+.top-actions { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.worker-preview { color: var(--blue); font-size: 12px; font-weight: 700; text-decoration: none; padding: 10px; }
+.draft-state { min-width: 142px; height: 48px; display: flex; align-items: center; gap: 9px; border: 1px solid var(--border); border-radius: 7px; padding: 0 12px; }
+.draft-state i { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); }
+.draft-state.published i { background: var(--mint); }
+.draft-state span { display: grid; gap: 2px; }.draft-state strong { font-size: 12px; }.draft-state small { color: var(--muted); font-size: 10px; }
+.publish:disabled { color: var(--mint); border: 1px solid #a7d9cf; background: #e8f7f3; opacity: 1; }
+.publish-error { position: fixed; z-index: 30; top: 80px; right: 18px; max-width: min(380px, calc(100vw - 36px)); padding: 11px 13px; border: 1px solid #efaaa3; border-radius: 7px; background: #fff1ef; color: #922a22; font-size: 12px; font-weight: 650; box-shadow: 0 8px 24px rgba(80, 25, 20, .12); }
+.profile { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 12px; font-weight: 700; text-decoration: none; }
+.profile span { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 50%; background: #e5e7eb; font-size: 10px; }
+.sidebar { grid-column: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--surface); padding: 18px 10px; }
+.sidebar nav { display: grid; gap: 5px; }.sidebar a { height: 43px; padding: 0 12px; display: flex; align-items: center; gap: 11px; color: var(--muted); border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 600; }
+.sidebar a span { width: 18px; text-align: center; font-size: 17px; }.sidebar a:hover { background: var(--surface-hover); color: var(--ink); }.sidebar a.active { background: var(--blue-soft); color: var(--blue); box-shadow: inset 3px 0 0 var(--blue); }
+.sidebar .lower-nav { margin-top: auto; }.route-panel { min-width: 0; overflow: hidden; }
+@media (max-width: 1120px) { .profile { display: none; } }
+@media (max-width: 900px) {
+  .app-shell { grid-template: 64px 1fr / 1fr; }.topbar { padding: 0 15px; gap: 8px; }.brand { width: auto; font-size: 0; }.brand span { font-size: 15px; }.sidebar { display: none; }.week-controls { margin-left: 8px; }.week-picker { font-size: 12px; }.top-actions .draft-state, .worker-preview { display: none; }.publish { padding: 0 11px; }
+}
+@media (max-width: 560px) { .icon-control { display: none; }.week-picker span { display: none; }.publish { font-size: 11px; }.topbar { justify-content: space-between; }.top-actions { margin-left: 0; } }
+@media print { .topbar, .sidebar { display: none !important; }.app-shell { display: block; } }

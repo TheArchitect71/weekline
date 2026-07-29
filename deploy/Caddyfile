@@ -1,0 +1,22 @@
+{$WEEKLINE_DOMAIN} {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy {$WEEKLINE_API_UPSTREAM:127.0.0.1:8080}
+	}
+
+	handle {
+		forward_auth {$WEEKLINE_API_UPSTREAM:127.0.0.1:8080} {
+			uri /api/host/availability
+		}
+		root * "{$WEEKLINE_WEB_ROOT}"
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+}

@@ -1,0 +1,28 @@
+<main class="worker-leave">
+  <header><a routerLink="/my-schedule" aria-label="Back to schedule">‹</a><div><p>Weekline</p><h1>Time off</h1></div><span></span></header>
+
+  <section class="balance-strip" aria-label="Leave balances">
+    @for (balance of leave.balances(); track balance.leaveTypeId) { <div><strong>{{ balance.availableHours }}h</strong><span>{{ balance.leaveTypeName }} available</span><small>{{ balance.usedHours }}h used</small></div> }
+  </section>
+
+  <form class="leave-request-form" (ngSubmit)="submit()">
+    <div><h2>Request time off</h2><p>Your manager will review the dates and current schedule.</p></div>
+    @if (actionError()) { <p class="form-error" role="alert">{{ actionError() }}</p> }
+    <label>Leave type<select name="leaveType" [(ngModel)]="form.leaveTypeId" required><option value="">Choose type</option>@for (type of leave.types(); track type.id) { <option [value]="type.id">{{ type.name }}</option> }</select></label>
+    <div class="date-row"><label>Start date<input name="startsOn" type="date" [(ngModel)]="form.startsOn" required /></label><label>End date<input name="endsOn" type="date" [(ngModel)]="form.endsOn" required /></label></div>
+    <label>Hours per day<input name="hoursPerDay" type="number" min="0.25" max="24" step="0.25" [(ngModel)]="form.hoursPerDay" required /></label>
+    <label>Reason <span>Optional</span><textarea name="reason" maxlength="240" rows="3" [(ngModel)]="form.reason"></textarea></label>
+    <button class="button primary" type="submit" [disabled]="submitting() || !form.leaveTypeId">{{ submitting() ? 'Sending…' : 'Send request' }}</button>
+  </form>
+
+  <section class="leave-history">
+    <h2>Request history</h2>
+    @if (leave.loading()) { <p class="empty">Loading requests…</p> }
+    @else if (!leave.requests().length) { <p class="empty">You have not requested time off yet.</p> }
+    @else {
+      @for (request of leave.requests(); track request.id) {
+        <article><div><strong>{{ request.leaveTypeName }} · {{ dateRange(request) }}</strong><span>{{ request.requestedHours }} hours · {{ statusMessage(request) }}</span></div><b [class.pending]="request.status === 'pending'">{{ request.status }}</b>@if (request.status === 'pending') { <button type="button" [disabled]="submitting()" (click)="cancel(request)">Cancel</button> }</article>
+      }
+    }
+  </section>
+</main>

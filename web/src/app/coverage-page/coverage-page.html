@@ -1,0 +1,31 @@
+<section class="content-page coverage-page">
+  <header class="page-heading"><div><h1>Coverage</h1><p>Track staffing gaps, open shifts, and available employees.</p></div><div class="page-actions"><span>{{ totalGap() }} open {{ totalGap() === 1 ? 'position' : 'positions' }}</span><button class="button primary" type="button" (click)="startCreate()">＋ Open shift</button></div></header>
+  @if (actionError()) { <p class="inline-error" role="alert">{{ actionError() }}</p> }
+
+  @if (formOpen) {
+    <form class="coverage-form" (ngSubmit)="save()">
+      <header><div><h2>{{ editingId ? 'Edit open shift' : 'Create open shift' }}</h2><p>Headcount gaps are calculated from actual assignments.</p></div><button type="button" aria-label="Close open shift form" (click)="formOpen = false">×</button></header>
+      <div class="form-grid"><label>Date<input name="date" type="date" [(ngModel)]="form.date" required /></label><label>Required headcount<input name="headcount" type="number" min="1" max="100" [(ngModel)]="form.requiredHeadcount" required /></label><label>Start time<input name="start" type="time" [(ngModel)]="form.start" required /></label><label>End time<input name="end" type="time" [(ngModel)]="form.end" required /></label><label class="wide">Notes<input name="note" maxlength="120" [(ngModel)]="form.note" /></label></div>
+      <footer><button class="button primary" type="submit" [disabled]="acting() === 'save'">{{ acting() === 'save' ? 'Saving…' : 'Save open shift' }}</button></footer>
+    </form>
+  }
+
+  <section class="coverage-list" aria-label="Open shifts">
+    @if (schedule.loading()) { <div class="empty-page">Loading coverage…</div> }
+    @else if (!schedule.openShifts().length) { <div class="empty-page">No open shifts for this week.</div> }
+    @else {
+      @for (openShift of schedule.openShifts(); track openShift.id) {
+        <article>
+          <div class="coverage-date"><strong>{{ dateLabel(openShift.date) }}</strong><span>{{ time(openShift.start) }}–{{ time(openShift.end) }}</span></div>
+          <div><strong>{{ openShift.note || 'Open shift' }}</strong><span>{{ openShift.assignedCount }} of {{ openShift.requiredHeadcount }} assigned</span></div>
+          <div class="gap-meter"><span [style.width.%]="openShift.requiredHeadcount ? openShift.assignedCount / openShift.requiredHeadcount * 100 : 0"></span></div>
+          <b [class.filled]="openShift.coverageGap === 0">{{ openShift.coverageGap ? openShift.coverageGap + ' needed' : 'Covered' }}</b>
+          <div class="row-actions"><button class="button secondary" type="button" [disabled]="openShift.assignedCount > 0" (click)="startEdit(openShift)">Edit</button><button class="button secondary" type="button" [disabled]="openShift.coverageGap === 0" (click)="startAssign(openShift)">Find employee</button><button class="button secondary danger" type="button" [disabled]="openShift.assignedCount > 0" (click)="remove(openShift)">Delete</button></div>
+          @if (assigningId === openShift.id) {
+            <form class="assign-row" (ngSubmit)="assign()"><label>Available employee<select name="employee" [(ngModel)]="selectedEmployeeId" required><option value="">Choose employee</option>@for (suggestion of suggestions(); track suggestion.employeeId) { <option [value]="suggestion.employeeId">{{ suggestion.preferred ? 'Preferred · ' : '' }}{{ suggestion.employeeName }} · {{ suggestion.weeklyHours }}h scheduled</option> }</select></label><button class="button primary" type="submit" [disabled]="!selectedEmployeeId || acting() === openShift.id">Assign</button><button class="button secondary" type="button" (click)="assigningId = null">Cancel</button></form>
+          }
+        </article>
+      }
+    }
+  </section>
+</section>

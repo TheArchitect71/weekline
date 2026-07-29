@@ -1,0 +1,9 @@
+<section class="content-page narrow-page">
+  <header class="page-heading"><div><h1>Profile</h1><p>Your signed-in Weekline account.</p></div></header>
+  <div class="profile-card">
+    <span class="large-avatar">{{ userInitials() }}</span>
+    <div><h2>{{ user()?.displayName }}</h2><p>{{ user()?.email }}</p></div>
+    <dl><div><dt>Access</dt><dd>{{ user()?.role === 'manager' ? 'Manager' : 'Worker' }}</dd></div><div><dt>Session</dt><dd>Secure browser cookie</dd></div></dl>
+    <button class="button secondary" type="button" [disabled]="signingOut" (click)="logout()">{{ signingOut ? 'Signing out…' : 'Sign out' }}</button>
+  </div>
+</section>

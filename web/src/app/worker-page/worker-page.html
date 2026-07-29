@@ -1,0 +1,23 @@
+@if (preview) {
+  <div class="preview-bar"><span>Worker preview</span><button type="button" (click)="exit()">Exit preview</button></div>
+}
+@if (schedule.loading()) {
+  <div class="worker-loading">Loading schedule…</div>
+} @else if (schedule.error()) {
+  <div class="worker-empty"><strong>No schedule to show</strong><p>{{ schedule.error() }}</p><button class="button secondary" type="button" (click)="schedule.moveWeek(-1)">Previous week</button></div>
+} @else if (currentEmployee(); as employee) {
+  <app-worker-schedule
+    [shifts]="schedule.shifts()"
+    [employees]="schedule.employees()"
+    [days]="schedule.days()"
+    [currentEmployee]="employee"
+    [leave]="schedule.leave()"
+    [holidays]="schedule.holidays()"
+    (profileRequested)="exit()"
+    (previousWeekRequested)="schedule.moveWeek(-1)"
+    (nextWeekRequested)="schedule.moveWeek(1)"
+    (requestsRequested)="openRequests()"
+    (leaveRequested)="openLeave()"
+    (availabilityRequested)="openAvailability()"
+  />
+}

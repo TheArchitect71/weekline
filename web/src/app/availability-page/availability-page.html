@@ -1,0 +1,41 @@
+<main class="availability-shell" [class.manager-page]="isManager()" [class.worker-page]="!isManager()">
+  <header [class.page-heading]="isManager()" [class.worker-heading]="!isManager()">
+    @if (!isManager()) { <a routerLink="/my-schedule" aria-label="Back to schedule">‹</a> }
+    <div><p>{{ isManager() ? 'Planning rules' : 'Weekline' }}</p><h1>{{ isManager() ? 'Availability' : 'My availability' }}</h1>@if (isManager()) { <span>Review recurring preferred and unavailable hours before assigning shifts.</span> }</div>
+    @if (isManager()) { <button class="button primary" type="button" (click)="startCreate()">＋ Add availability</button> } @else { <span></span> }
+  </header>
+
+  @if (actionError()) { <p class="inline-error" role="alert">{{ actionError() }}</p> }
+
+  @if (formOpen) {
+    <form class="availability-form" (ngSubmit)="save()">
+      <header><div><h2>{{ editingId ? 'Edit recurring hours' : 'Add recurring hours' }}</h2><p>These hours repeat weekly within the optional effective dates.</p></div>@if (isManager()) { <button type="button" aria-label="Close availability form" (click)="formOpen = false">×</button> }</header>
+      <div class="kind-control" role="group" aria-label="Availability type"><button type="button" [class.active]="form.kind === 'unavailable'" (click)="setKind('unavailable')">Unavailable</button><button type="button" [class.active]="form.kind === 'preferred'" (click)="setKind('preferred')">Preferred</button></div>
+      <div class="form-grid">
+        @if (isManager()) { <label>Employee<select name="employee" [(ngModel)]="form.employeeId" required><option value="">Choose employee</option>@for (employee of schedule.employees(); track employee.id) { <option [value]="employee.id">{{ employee.name }}</option> }</select></label> }
+        <label>Day<select name="day" [(ngModel)]="form.dayOfWeek" required>@for (day of days; track day.value) { <option [ngValue]="day.value">{{ day.label }}</option> }</select></label>
+        <label>Start time<input name="start" type="time" [(ngModel)]="form.start" required /></label>
+        <label>End time<input name="end" type="time" [(ngModel)]="form.end" required /></label>
+        <label>Effective from <span>Optional</span><input name="effectiveFrom" type="date" [(ngModel)]="form.effectiveFrom" /></label>
+        <label>Effective until <span>Optional</span><input name="effectiveUntil" type="date" [(ngModel)]="form.effectiveUntil" /></label>
+        <label class="wide">Note <span>Optional</span><input name="note" maxlength="120" [(ngModel)]="form.note" /></label>
+      </div>
+      <footer>@if (isManager()) { <button class="button secondary" type="button" (click)="formOpen = false">Cancel</button> }<button class="button primary" type="submit" [disabled]="acting() || (isManager() && !form.employeeId)">{{ acting() ? 'Saving…' : 'Save availability' }}</button></footer>
+    </form>
+  }
+
+  <section class="availability-list" aria-label="Availability rules">
+    <header><h2>Recurring hours</h2><span>{{ availability.rules().length }} {{ availability.rules().length === 1 ? 'rule' : 'rules' }}</span></header>
+    @if (availability.loading()) { <p class="empty">Loading availability…</p> }
+    @else if (!availability.rules().length) { <p class="empty">No recurring availability has been added.</p> }
+    @else {
+      @for (rule of availability.rules(); track rule.id) {
+        <article>
+          <span class="kind" [class.preferred]="rule.kind === 'preferred'">{{ rule.kind }}</span>
+          <div><strong>{{ isManager() ? rule.employeeName + ' · ' : '' }}{{ dayName(rule.dayOfWeek) }}</strong><p>{{ time(rule.start) }} – {{ time(rule.end) }} · {{ dateScope(rule) }}</p>@if (rule.note) { <small>{{ rule.note }}</small> }</div>
+          <div class="row-actions"><button type="button" (click)="startEdit(rule)">Edit</button><button class="delete" type="button" (click)="remove(rule)">Delete</button></div>
+        </article>
+      }
+    }
+  </section>
+</main>
