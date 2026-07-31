@@ -30,12 +30,13 @@ Employee browser
       |
 Internet / HTTPS
       |
-Spectrum Enterprise public IPv4
+Cloudflare Tunnel
       |
-Office router: TCP 80 and 443 only
+Outbound connection from the office network
       |
 Windows office desktop
-      |-- Caddy: TLS and static Angular site
+      |-- cloudflared: automatic outbound tunnel service
+      |-- Caddy: localhost-only static Angular site and reverse proxy
       |-- Go API/controller: 127.0.0.1:8080
       `-- PostgreSQL: local only, never forwarded
 
@@ -47,15 +48,14 @@ The Windows `WeeklineHost` service, Caddy, and PostgreSQL remain running so a re
 
 Each manager app uses a UUID lease, renews it every 15 seconds, and has a 45-second server expiry. A normal close releases only that UUID. A crash or network loss expires automatically. Therefore only the final release or expiry disables employee access.
 
-## Spectrum and deployment decisions
+## Cloudflare Tunnel and deployment decisions
 
-- Confirm that the Spectrum Enterprise circuit has a public IPv4 address; a static address is preferred.
-- Point the schedule domain to that public IP. A dynamic IP requires dynamic DNS.
-- Reserve a LAN address for the office host.
-- Verify that the public schedule hostname also reaches the host from the office LAN. If the router does not support NAT loopback, configure a local/router DNS override that resolves the same hostname to the host's reserved LAN address; keep the hostname unchanged so HTTPS certificate validation still works.
-- Forward TCP 80 and 443 to the office host. Never forward PostgreSQL 5432 or API 8080.
+- Use the organization’s existing domain and configure a `schedule` subdomain in Cloudflare; the WordPress website remains at its current host.
+- Create a named, remotely managed Cloudflare Tunnel and assign the schedule hostname to it with origin `http://127.0.0.1:8081`.
+- Install the generated tunnel token only on the office host. The `WeeklineTunnel` Windows service makes the outbound connection automatically after reboot.
+- Do not create router port forwards or Windows inbound firewall rules for TCP 80 or 443. Never expose PostgreSQL 5432, API 8080, Caddy admin 2019, or RDP 3389.
 - Disable sleep and hibernation on the host and allow the `WeeklineHost` service to start automatically after reboot.
-- Caddy obtains and renews HTTPS certificates.
+- Cloudflare terminates public HTTPS; Caddy is bound only to `127.0.0.1:8081`.
 
 Windows build and installation instructions are in `deploy/windows/README.md`.
 
@@ -64,7 +64,7 @@ Windows build and installation instructions are in `deploy/windows/README.md`.
 - `web/`: Angular employee and manager frontend.
 - `api/`: Go API, PostgreSQL store, and migrations.
 - `desktop/`: First-party Deno Desktop CEF shell and lease heartbeat client.
-- `deploy/Caddyfile`: HTTPS/static/reverse-proxy and lease gate.
+- `deploy/Caddyfile`: localhost-only static/reverse-proxy and lease gate behind Cloudflare Tunnel.
 - `deploy/windows/`: Windows release builder, installer, first-manager bootstrap, post-install acceptance verifier, and complete physical deployment guide.
 - `dev.sh`: preferred macOS/local development launcher.
 
@@ -100,16 +100,16 @@ The desktop build requires Deno 2.9.0 or newer because `deno desktop` first ship
 - Windows configuration files are written as UTF-8 without a BOM, and the Go loader also has a regression-tested BOM fallback for compatibility with older PowerShell behavior.
 - A fresh production-style database test created exactly one initial manager, rejected a second bootstrap by making no changes, and authenticated the created manager through the real login API with demo seeding disabled.
 
-These checks validate the application and release artifacts, but they do not substitute for installing them on the actual office Windows host and testing the real Spectrum/router path.
+These checks validate the application and release artifacts, but they do not substitute for installing them on the actual office Windows host and testing the real Cloudflare Tunnel path.
 
 ## Remaining site-specific work
 
 These steps require the actual office network or Windows computers and cannot be completed on the macOS development machine:
 
-1. Confirm Spectrum static/public IPv4 service.
-2. Choose/register the schedule domain and create its DNS record.
+1. Add the organization domain to Cloudflare while preserving all existing WordPress DNS records.
+2. Create a named Cloudflare Tunnel and public `schedule` hostname.
 3. Install PostgreSQL and the Weekline Windows release on the designated office desktop.
-4. Reserve the host LAN address and configure router port forwarding.
+4. Install the generated tunnel token on the host and verify there are no router port forwards.
 5. Disable host sleep/hibernation and verify restart recovery.
 6. Install the manager MSI and configuration on every authorized manager computer.
 7. Run `verify-office-deployment.ps1` on the office host and require a passing result.

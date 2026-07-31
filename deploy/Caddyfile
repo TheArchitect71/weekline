@@ -1,4 +1,9 @@
-{$WEEKLINE_DOMAIN} {
+{
+	admin off
+	auto_https off
+}
+
+http://{$WEEKLINE_CADDY_ADDRESS:127.0.0.1:8081} {
 	encode zstd gzip
 
 	handle /api/* {

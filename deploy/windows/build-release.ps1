@@ -3,6 +3,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$CaddyExecutable,
 
+    [Parameter(Mandatory = $true)]
+    [string]$CloudflaredExecutable,
+
     [string]$OutputDirectory = ""
 )
 
@@ -14,6 +17,9 @@ if (-not $OutputDirectory) {
 
 if (-not (Test-Path $CaddyExecutable -PathType Leaf)) {
     throw "Caddy executable not found: $CaddyExecutable"
+}
+if (-not (Test-Path $CloudflaredExecutable -PathType Leaf)) {
+    throw "cloudflared executable not found: $CloudflaredExecutable"
 }
 
 $ExpectedDenoVersion = (Get-Content (Join-Path $RepositoryRoot ".deno-version") -Raw).Trim()
@@ -63,6 +69,7 @@ deno desktop `
     (Join-Path $RepositoryRoot "desktop\main.ts")
 
 Copy-Item $CaddyExecutable (Join-Path $OutputDirectory "caddy.exe") -Force
+Copy-Item $CloudflaredExecutable (Join-Path $OutputDirectory "cloudflared.exe") -Force
 Copy-Item (Join-Path $RepositoryRoot "deploy\Caddyfile") (Join-Path $OutputDirectory "Caddyfile") -Force
 Copy-Item (Join-Path $RepositoryRoot "web\dist\web\browser\*") (Join-Path $OutputDirectory "web") -Recurse -Force
 Copy-Item (Join-Path $PSScriptRoot "install-office-host.ps1") $OutputDirectory -Force

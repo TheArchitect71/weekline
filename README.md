@@ -9,7 +9,7 @@ Weekline is a responsive employee scheduling application intended to replace a w
 - Angular 22 standalone frontend with no additional UI libraries
 - Go HTTP API using the standard library router
 - PostgreSQL persistence for schedules, requests, leave, availability, sessions, and audit events
-- Caddy for HTTPS, static frontend hosting, and `/api` reverse proxying
+- Cloudflare Tunnel for public HTTPS access without router port forwarding, plus Caddy for local static frontend hosting and `/api` reverse proxying
 - First-party Deno Desktop 2.9+ with the CEF backend for the manager application
 - macOS development with deployment artifacts suitable for Windows or Linux
 
@@ -54,7 +54,7 @@ The no-cloud Windows office-host build, installation, and post-install acceptanc
 ## Windows downloads
 
 A Windows release is a ZIP archive, not only the manager MSI. The ZIP contains
-the compiled website, `weekline-host.exe`, Caddy, `WeeklineManager.msi`, the
+the compiled website, `weekline-host.exe`, Caddy, `cloudflared`, `WeeklineManager.msi`, the
 host and manager installers, the deployment verifier, and a version file.
 
 Tagged builds are published on the repository's **Releases** page as
@@ -69,7 +69,9 @@ containing the generic MSI and an office-specific `manager.json`. That private
 directory is copied directly to authorized manager computers; it must never be
 uploaded to GitHub because it contains the host-control token.
 
-The source code is licensed under the [MIT License](LICENSE). Release binaries
+The office host uses a named Cloudflare Tunnel to publish only the employee
+website. No router ports are forwarded; PostgreSQL, the API, Caddy's admin
+endpoint, and Remote Desktop remain private. The source code is licensed under the [MIT License](LICENSE). Release binaries
 are initially unsigned and may display an Unknown Publisher warning on Windows;
 code signing is required before broad distribution outside the organization.
 

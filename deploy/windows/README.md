@@ -2,7 +2,7 @@
 
 This deployment keeps all application compute and PostgreSQL data on the designated Windows office desktop. No rented cloud compute is required.
 
-For the complete first-time physical procedure—including PostgreSQL account creation, DNS, Spectrum/router questions, port forwarding, manager installation, offsite verification, and backups—use [`PHYSICAL_INSTALLATION_GUIDE.md`](PHYSICAL_INSTALLATION_GUIDE.md).
+For the complete first-time physical procedure—including PostgreSQL account creation, Cloudflare DNS and Tunnel setup, manager installation, offsite verification, and backups—use [`PHYSICAL_INSTALLATION_GUIDE.md`](PHYSICAL_INSTALLATION_GUIDE.md).
 
 ## What gets downloaded, and from where
 
@@ -23,12 +23,11 @@ private package copied to authorized manager computers.
 
 ## Network prerequisites
 
-1. Confirm the Spectrum Enterprise connection has a public IPv4 address; a static address is preferred.
-2. Point the chosen schedule hostname to that public address. If the address is dynamic, configure dynamic DNS so the record stays current.
-3. Give the office host a reserved LAN address.
-4. Forward router TCP ports 80 and 443 to the office host.
-5. Do not forward ports 5432 or 8080.
-6. Test the schedule hostname from inside the office LAN. If the router does not support NAT loopback, add a router/local DNS override that resolves the same hostname to the host's reserved LAN address. Do not use a different hostname because it would not match the public HTTPS certificate.
+1. Keep the existing WordPress site at its current host and preserve every existing DNS record.
+2. Add the organizational domain to Cloudflare and create a named, remotely managed tunnel.
+3. Configure the public `schedule` hostname in Cloudflare with origin `http://127.0.0.1:8081`.
+4. Obtain the tunnel token from Cloudflare and store it only on the office host during installation.
+5. Do not forward router or Windows firewall ports 80, 443, 5432, or 8080.
 
 ## Host prerequisites
 
@@ -36,6 +35,7 @@ private package copied to authorized manager computers.
 - PostgreSQL running locally with a Weekline database and dedicated database account
 - Node, pnpm, Go, and the exact Deno version in `.deno-version` on the build computer
 - An official Caddy Windows executable supplied to `build-release.ps1`
+- An official `cloudflared` Windows executable supplied to `build-release.ps1`
 - Sleep and hibernation disabled on the office host
 - The office network is configured as a Windows Domain or Private profile
 - Windows security updates and automatic service recovery remain enabled
@@ -50,7 +50,9 @@ that pin.
 Run from elevated PowerShell on the build computer:
 
 ```powershell
-.\deploy\windows\build-release.ps1 -CaddyExecutable C:\path\to\caddy.exe
+.\deploy\windows\build-release.ps1 `
+  -CaddyExecutable C:\path\to\caddy.exe `
+  -CloudflaredExecutable C:\path\to\cloudflared.exe
 ```
 
 ## Install the office host
@@ -60,10 +62,11 @@ From the generated `dist\windows` directory:
 ```powershell
 .\install-office-host.ps1 `
   -Domain schedule.example.com `
-  -DatabaseUrl "postgres://weekline:REPLACE_PASSWORD@127.0.0.1/weekline?sslmode=disable"
+  -DatabaseUrl "postgres://weekline:REPLACE_PASSWORD@127.0.0.1/weekline?sslmode=disable" `
+  -CloudflareTunnelToken "PASTE_TUNNEL_TOKEN_HERE"
 ```
 
-The installer creates the automatic `WeeklineHost` Windows service. That service keeps the private controller/API alive and supervises Caddy. The employee site and worker API are enabled only while at least one authorized manager desktop lease is active.
+The installer creates the automatic `WeeklineHost` service and a separate automatic `WeeklineTunnel` service. Caddy listens only on `127.0.0.1:8081`; `WeeklineTunnel` is the sole public path. The employee site and worker API are enabled only while at least one authorized manager desktop lease is active.
 
 On a new database, the installer prompts for the initial Weekline manager's email, name, and password. It uses the password only for the one-time account bootstrap and does not write that password to either configuration file.
 
@@ -86,16 +89,16 @@ distribution.
 
 ## Verify the installed office host
 
-After DNS and router forwarding are configured, close every real Weekline Manager app. Then run the packaged verifier from an elevated PowerShell window on the office host:
+After Cloudflare reports the tunnel Healthy and the public hostname is configured, close every real Weekline Manager app. Then run the packaged verifier from an elevated PowerShell window on the office host:
 
 ```powershell
 & "$env:ProgramData\Weekline\verify-office-deployment.ps1" `
   -Domain schedule.example.com
 ```
 
-The verifier checks the automatic Windows service, required files, firewall rules, IPv4 DNS resolution, HTTPS API health, disabled attendance route, and the complete employee-site lease sequence. It creates two temporary acceptance leases, proves `0 -> 1 -> 2 -> 1 -> 0`, and removes both leases in a `finally` block if any check fails. A passing run ends with `Weekline office deployment acceptance PASSED`.
+The verifier checks both automatic Windows services, required files, the absence of legacy inbound HTTP/HTTPS rules, public DNS resolution, HTTPS API health, disabled attendance route, and the complete employee-site lease sequence. It creates two temporary acceptance leases, proves `0 -> 1 -> 2 -> 1 -> 0`, and removes both leases in a `finally` block if any check fails. A passing run ends with `Weekline office deployment acceptance PASSED`.
 
-This host-side check does not prove that Spectrum is forwarding traffic from the public Internet. After it passes, disconnect a phone from office Wi-Fi and open the schedule hostname over cellular data. Also complete the real two-computer manager test described below.
+This host-side check does not prove the public Cloudflare path from an independent network. After it passes, disconnect a phone from office Wi-Fi and open the schedule hostname over cellular data. Also complete the real two-computer manager test described below.
 
 ## Lifecycle guarantee
 
