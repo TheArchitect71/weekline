@@ -11,6 +11,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ServiceName = "WeeklineHost"
+$TunnelServiceName = "WeeklineTunnel"
 if (-not $BaseUrl) {
     $BaseUrl = "https://$Domain"
 }
@@ -134,6 +135,7 @@ try {
         foreach ($path in @(
             (Join-Path $InstallRoot "bin\weekline-host.exe"),
             (Join-Path $InstallRoot "bin\caddy.exe"),
+            (Join-Path $InstallRoot "bin\cloudflared.exe"),
             (Join-Path $InstallRoot "Caddyfile"),
             (Join-Path $InstallRoot "weekline.env"),
             (Join-Path $InstallRoot "web\index.html")
@@ -142,19 +144,22 @@ try {
         }
         Write-Pass "required host files are installed"
 
-        foreach ($port in 80, 443) {
-            $rule = Get-NetFirewallRule -DisplayName "Weekline HTTPS $port" -ErrorAction SilentlyContinue
-            Assert-True ($null -ne $rule -and $rule.Enabled -eq "True") "The inbound Weekline firewall rule for TCP $port is missing or disabled."
+        $tunnelService = Get-Service -Name $TunnelServiceName -ErrorAction SilentlyContinue
+        Assert-True ($null -ne $tunnelService) "The $TunnelServiceName service is not installed."
+        Assert-True ($tunnelService.Status -eq "Running") "The $TunnelServiceName service is not running."
+        $tunnelServiceConfig = Get-CimInstance Win32_Service -Filter "Name='$TunnelServiceName'"
+        Assert-True ($tunnelServiceConfig.StartMode -eq "Auto") "The $TunnelServiceName service startup mode is $($tunnelServiceConfig.StartMode), not Automatic."
+        Write-Pass "$TunnelServiceName service is running and starts automatically"
+
+        foreach ($ruleName in "Weekline HTTPS 80", "Weekline HTTPS 443") {
+            $rule = Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue
+            Assert-True ($null -eq $rule) "Legacy inbound firewall rule $ruleName is still enabled. Cloudflare Tunnel does not require inbound HTTP or HTTPS rules."
         }
-        Write-Pass "Windows firewall rules for TCP 80 and 443 are enabled"
+        Write-Pass "legacy inbound HTTP and HTTPS firewall rules are absent"
     }
 
-    $addresses = @(
-        [Net.Dns]::GetHostAddresses($Domain) |
-            Where-Object { $_.AddressFamily -eq [Net.Sockets.AddressFamily]::InterNetwork } |
-            ForEach-Object { $_.IPAddressToString }
-    )
-    Assert-True ($addresses.Count -gt 0) "$Domain did not resolve to an IPv4 address."
+    $addresses = @([Net.Dns]::GetHostAddresses($Domain) | ForEach-Object { $_.IPAddressToString })
+    Assert-True ($addresses.Count -gt 0) "$Domain did not resolve to an address."
     Write-Pass "$Domain resolves to $($addresses -join ', ')"
 
     $health = Invoke-WeeklineRequest -Method "GET" -Path "/api/health"

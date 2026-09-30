@@ -1,6 +1,6 @@
 # Weekline physical installation guide
 
-This guide covers the first production installation on the office Windows host, PostgreSQL setup, public DNS, router forwarding, manager-computer installation, verification, and backups.
+This guide covers the first production installation on the office Windows host, PostgreSQL setup, Cloudflare DNS and Tunnel configuration, manager-computer installation, verification, and backups.
 
 ## What is installed where
 
@@ -8,7 +8,8 @@ This guide covers the first production installation on the office Windows host, 
 Office Windows host
   PostgreSQL service       127.0.0.1:5432 only
   WeeklineHost Go service  127.0.0.1:8080 only
-  Caddy                    LAN/Internet TCP 80 and 443
+  Caddy                    127.0.0.1:8081 only
+  WeeklineTunnel           outbound Cloudflare Tunnel service
   Angular website          served by Caddy
 
 Manager computers
@@ -27,13 +28,13 @@ Every manager application and employee browser connects to one address:
 https://schedule.example.com
 ```
 
-They never connect directly to PostgreSQL. Caddy receives HTTPS traffic, sends `/api` requests to the Go service on the same host, and the Go service connects to PostgreSQL on the same host. PostgreSQL port 5432 and Go port 8080 must never be forwarded through the router.
+They never connect directly to PostgreSQL. Cloudflare terminates public HTTPS and forwards requests through the named tunnel to Caddy on the same host. Caddy sends `/api` requests to the Go service, and the Go service connects to PostgreSQL. No Weekline port is forwarded through the router.
 
 If the office host, its power, or its Internet service fails, remote Weekline access fails because this design deliberately uses no rented cloud server.
 
 ## Why PostgreSQL is currently a separate installation
 
-The present Weekline release contains the Weekline website, Go service, Caddy, Windows service installer, manager MSI, and verification tools. It does **not** contain the PostgreSQL Windows installer.
+The present Weekline release contains the Weekline website, Go service, Caddy, `cloudflared`, Windows service installers, manager MSI, and verification tools. It does **not** contain the PostgreSQL Windows installer.
 
 PostgreSQL is a separate long-running database service with its own data directory, Windows service, security updates, backups, and major-version upgrades. Keeping it as an explicit prerequisite avoids an application update silently replacing or deleting the database. The PostgreSQL project recommends binary packages where available, and its Windows download page offers a graphical installer containing the server and command-line tools:
 
@@ -49,9 +50,8 @@ Write these down in an administrator password manager, not in an email:
 | Item | Example | Your value |
 |---|---|---|
 | Public schedule hostname | `schedule.example.com` | |
-| Spectrum public IPv4 | `203.0.113.25` | |
-| Office router LAN address | `192.168.1.1` | |
-| Reserved host LAN address | `192.168.1.50` | |
+| Public schedule hostname | `schedule.example.com` | |
+| Cloudflare Tunnel token | copied from the named tunnel dashboard page | |
 | PostgreSQL administrator | `postgres` | |
 | PostgreSQL administrator password | created during PostgreSQL installation | |
 | Weekline database | `weekline` | |
@@ -63,29 +63,17 @@ Write these down in an administrator password manager, not in an email:
 
 The PostgreSQL administrator account, Weekline database role, and Weekline manager login are three different credentials.
 
-## Phase 1: confirm the Spectrum Internet handoff
+## Phase 1: prepare the Cloudflare account and organizational domain
 
-Contact Spectrum Enterprise or inspect the service paperwork and confirm all of the following:
+The WordPress website and the schedule hostname can share one organizational domain. WordPress remains at its current host; only a new `schedule` subdomain is routed through Cloudflare Tunnel.
 
-1. The service has a publicly routable IPv4 address.
-2. Whether that address is static or dynamic.
-3. Whether Spectrum manages the edge router or your organization manages its own router/firewall.
-4. Whether inbound TCP 80 and 443 are permitted.
-5. Whether Spectrum must create the NAT/firewall rules for you.
-6. The public IPv4, subnet, gateway, and DNS information if Spectrum provides a static block.
+1. Log in to the organization-owned domain registrar or DNS provider and record every existing DNS record before changing anything.
+2. Add the organizational domain to a free Cloudflare account. If Cloudflare asks to change nameservers, copy every WordPress-related DNS record first so the existing website and email continue to work.
+3. In Cloudflare, create a **named, remotely managed** tunnel named `weekline-office-host`.
+4. Add a public hostname such as `schedule.example.com`. Set its service/origin to `http://127.0.0.1:8081`.
+5. Copy the generated tunnel installation token into a password manager. Anyone holding this token can run the tunnel, so do not email it or commit it to GitHub.
 
-Spectrum Enterprise documents static IPv4 availability for Enterprise Internet, although the exact entitlement depends on the purchased service: <https://enterprise.spectrum.com/content/dam/spectrum/enterprise/en/pdfs/resources/tech-specs/SE-FI-TS003_v3_Enterprise-Internet.pdf>.
-
-If the router's WAN address is in one of these ranges, it is not a directly routable public IPv4 address:
-
-- `10.0.0.0/8`
-- `172.16.0.0/12`
-- `192.168.0.0/16`
-- `100.64.0.0/10` (carrier-grade NAT)
-
-Ask Spectrum to confirm the service is not behind CGNAT. Do not assign the public address directly to the Windows host; keep the host behind the office firewall/router.
-
-If Spectrum supplies a managed router, the change may need to be requested through Spectrum rather than entered locally. Spectrum describes Managed Router Service as including remote configuration and change management: <https://enterprise.spectrum.com/content/dam/spectrum/enterprise/en/pdfs/support/user-guides/SE-MS-GD001_v3-Managed-Router-Service-Portal-Guide-Cisco.pdf>.
+Cloudflare’s current Windows Tunnel setup is documented at <https://developers.cloudflare.com/tunnel/setup/>. Do not use a temporary Quick Tunnel for production because it has no stable organizational hostname or uptime commitment.
 
 ## Phase 2: prepare the Windows office host
 
@@ -113,7 +101,7 @@ The preferred method is a DHCP reservation in the router:
 Host MAC address -> 192.168.1.50
 ```
 
-Choose an unused address in the existing LAN subnet. Do not copy the example if the office uses a different subnet. A DHCP reservation avoids accidental address conflicts and ensures the router always forwards to the same computer.
+Choose an unused address in the existing LAN subnet. Do not copy the example if the office uses a different subnet. A DHCP reservation avoids accidental address conflicts and makes the office host easier to identify; Cloudflare Tunnel does not require that address to be publicly reachable.
 
 After creating the reservation, renew the address or restart the host, then confirm:
 
@@ -123,7 +111,7 @@ ipconfig
 
 ### 2.3 Use a Private or Domain Windows network profile
 
-The Weekline installer creates firewall rules only for Private and Domain profiles.
+The Weekline installer does not create inbound HTTP or HTTPS firewall rules. Keep the host on a Private or Domain network profile so the normal office security baseline applies.
 
 ```powershell
 Get-NetConnectionProfile
@@ -290,74 +278,35 @@ $DatabaseUrl = "postgres://weekline:$EncodedPassword@127.0.0.1:5432/weekline?ssl
 
 Do not print or save `$DatabaseUrl` in an ordinary text document.
 
-## Phase 4: configure public DNS
+## Phase 4: verify the Cloudflare public hostname
 
-Register a domain or use an existing organizational domain. A dedicated subdomain is recommended:
+Cloudflare creates the required DNS route when the public hostname is added to the named tunnel. It must point at the tunnel, not the office public IP.
 
-```text
-schedule.example.com
-```
-
-At the DNS provider, create:
-
-| Setting | Value |
-|---|---|
-| Type | `A` |
-| Name/Host | `schedule` |
-| Value/Target | Spectrum public IPv4 |
-| TTL | `300` seconds during setup |
-
-Do not create an `AAAA` record unless the office has intentionally configured working public IPv6 routing to the Weekline host. A stale or incorrect `AAAA` record can cause some clients and certificate validation attempts to use an unreachable IPv6 address.
-
-If the DNS provider offers an HTTP proxy/CDN toggle, use DNS-only/unproxied mode for initial Caddy certificate provisioning.
-
-Verify the public record:
+Verify that the hostname resolves and that it is associated with the tunnel in the Cloudflare dashboard:
 
 ```powershell
-Resolve-DnsName schedule.example.com -Type A
+Resolve-DnsName schedule.example.com
 ```
 
-The answer must be the Spectrum public IPv4, except that an intentional office split-DNS override may return the private host address while inside the office.
+The dashboard should show the `weekline-office-host` tunnel as **Healthy** only after the office host installation has started the `WeeklineTunnel` service.
 
-If the Spectrum address is dynamic, configure a supported dynamic-DNS updater on the router and use the DNS provider's documented mechanism. A static public IPv4 is strongly preferred.
+## Phase 5: remove legacy public exposure
 
-## Phase 5: configure router forwarding
+Do not configure or retain router forwarding for TCP ports 80 or 443. The office host starts an outbound encrypted connection to Cloudflare, so a public IPv4, static IP address, dynamic DNS, NAT loopback, and inbound Spectrum rules are not required for Weekline.
 
-First determine which device owns NAT:
-
-- If the organization controls its router/firewall, configure that device.
-- If Spectrum manages the edge router, request the changes from Spectrum.
-- If Spectrum hands off a routed public block to an organization-owned firewall, configure NAT on the organization-owned firewall.
-
-Create exactly these rules:
-
-| Rule | Protocol | Public/WAN port | Destination LAN IP | Destination port |
-|---|---|---:|---|---:|
-| Weekline HTTP | TCP | 80 | reserved Weekline host IP | 80 |
-| Weekline HTTPS | TCP | 443 | reserved Weekline host IP | 443 |
-
-Example:
+Confirm that no old rules remain:
 
 ```text
-TCP WAN 80  -> 192.168.1.50:80
-TCP WAN 443 -> 192.168.1.50:443
+TCP WAN 80  -> no destination
+TCP WAN 443 -> no destination
 ```
 
-Use source `Any` because employees may connect from changing mobile and home addresses. Do not use a DMZ-host setting.
-
-Never forward:
+Keep all of these services private:
 
 - PostgreSQL `5432`
 - Go API `8080`
-- Remote Desktop `3389`
 - Caddy administration `2019`
-
-Microsoft describes port forwarding as mapping a public router port to a port and internal address on a host, and notes that a stable internal address is needed: <https://learn.microsoft.com/en-us/windows-server/remote/remote-desktop-services/remotepc/remote-desktop-allow-outside-access>.
-
-If the router uses TCP/UDP combined rules, select TCP-only if possible. Caddy's public certificate automation requires the public domain to resolve correctly and ports 80 and 443 to reach Caddy:
-
-- <https://caddyserver.com/docs/quick-starts/https>
-- <https://caddyserver.com/docs/automatic-https>
+- Remote Desktop `3389`
 
 ## Phase 6: install Weekline on the host
 
@@ -381,6 +330,7 @@ $DatabaseUrl = "postgres://weekline:$EncodedPassword@127.0.0.1:5432/weekline?ssl
 .\install-office-host.ps1 `
   -Domain schedule.example.com `
   -DatabaseUrl $DatabaseUrl `
+  -CloudflareTunnelToken "PASTE_THE_TOKEN_FROM_CLOUDFLARE_HERE" `
   -ManagerEmail manager@example.com `
   -ManagerName "Office Manager"
 ```
@@ -389,29 +339,31 @@ The installer securely prompts for the first Weekline manager password. That pas
 
 The installer then:
 
-1. Copies the website, Go server, Caddy, verifier, and manager package into `%ProgramData%\Weekline`.
+1. Copies the website, Go server, Caddy, `cloudflared`, verifier, and manager package into `%ProgramData%\Weekline`.
 2. Stores the PostgreSQL connection URL in `%ProgramData%\Weekline\weekline.env` with access restricted to SYSTEM and Administrators.
 3. Connects to PostgreSQL and automatically applies every Weekline database migration.
 4. Creates the first Weekline manager if no manager exists.
 5. Creates the automatic `WeeklineHost` service.
 6. Configures service recovery after failures.
-7. Adds Windows firewall rules for TCP 80 and 443 on Private/Domain profiles.
-8. Starts WeeklineHost; that service starts Caddy.
-9. Generates the manager-computer configuration and secret control token.
+7. Removes any legacy Weekline inbound firewall rules for TCP 80 and 443.
+8. Starts `WeeklineHost`; that service starts the localhost-only Caddy origin.
+9. Creates and starts `WeeklineTunnel`, which uses the Cloudflare token to maintain the outbound public path.
+10. Generates the manager-computer configuration and secret control token.
 
 Confirm both services:
 
 ```powershell
 Get-Service WeeklineHost
+Get-Service WeeklineTunnel
 Get-Service postgresql*
 ```
 
 Both must report `Running`. Do not display or share `%ProgramData%\Weekline\weekline.env`.
 
-If DNS or forwarding was not ready when Caddy first started, finish those steps and restart Weekline:
+If Cloudflare was not configured when the host started, finish the public-hostname setup and restart the tunnel service:
 
 ```powershell
-Restart-Service WeeklineHost
+Restart-Service WeeklineTunnel
 ```
 
 ## Phase 7: verify the host and public path
@@ -419,8 +371,7 @@ Restart-Service WeeklineHost
 ### 7.1 Basic checks
 
 ```powershell
-Resolve-DnsName schedule.example.com -Type A
-Test-NetConnection schedule.example.com -Port 443
+Resolve-DnsName schedule.example.com
 Invoke-RestMethod https://schedule.example.com/api/health
 ```
 
@@ -443,7 +394,7 @@ Require the final message:
 Weekline office deployment acceptance PASSED.
 ```
 
-This checks the service, files, firewall rules, DNS, HTTPS health, disabled attendance route, and the `0 -> 1 -> 2 -> 1 -> 0` temporary manager-lease sequence.
+This checks both services, files, the absence of legacy inbound firewall rules, DNS, HTTPS health, disabled attendance route, and the `0 -> 1 -> 2 -> 1 -> 0` temporary manager-lease sequence.
 
 ### 7.3 Test from outside the office
 
@@ -453,15 +404,7 @@ Turn off Wi-Fi on a phone and use cellular data. Open:
 https://schedule.example.com/api/health
 ```
 
-If it works inside the office but not over cellular, investigate the public IP, CGNAT, router NAT/firewall, and Spectrum filtering.
-
-If it works over cellular but not on office Wi-Fi, the router probably lacks NAT loopback. Configure a router/local DNS override:
-
-```text
-schedule.example.com -> reserved LAN IP of Weekline host
-```
-
-Keep the same hostname so the public HTTPS certificate remains valid.
+If it does not work over cellular, check the Cloudflare dashboard for the tunnel’s health, confirm the public hostname points to the named tunnel, and confirm that `WeeklineTunnel` is running. Router NAT, static-IP status, and CGNAT are not part of this path.
 
 ## Phase 8: install each manager computer
 
@@ -535,18 +478,17 @@ Store at least one backup away from the host. A backup kept only on the same des
 |---|---|
 | PostgreSQL test login fails | PostgreSQL service, role password, `pg_hba.conf`, or database ownership |
 | WeeklineHost will not stay running | Database URL, PostgreSQL availability, configuration permissions, or Caddy startup |
+| WeeklineTunnel will not stay running | Invalid or rotated Cloudflare tunnel token, blocked outbound Internet access, or `cloudflared` startup failure |
 | `/api/health` works but `/` returns 503 | Expected when no manager lease is active |
 | Manager opens but cannot enable site | Wrong `manager.json`, HTTPS/DNS failure, or host-control token mismatch |
-| Works on LAN but not cellular | Public IP, CGNAT, router forwarding, Spectrum firewall, or wrong DNS A record |
-| Works on cellular but not LAN | Router lacks NAT loopback; configure split/local DNS |
-| Browser reports certificate error | DNS points elsewhere, ports 80/443 do not reach Caddy, incorrect system time, or incorrect AAAA record |
-| Caddy cannot obtain certificate | DNS/port-forwarding not complete or another service already owns port 80/443 |
+| Works on host but not cellular | Tunnel is unhealthy, public hostname is not attached to the tunnel, or the Cloudflare DNS change has not propagated |
+| Browser reports certificate error | The schedule hostname is not proxied through Cloudflare, DNS points elsewhere, or the local system clock is wrong |
 | Manager computer asks for PostgreSQL | Incorrect package or configuration; managers must never connect to PostgreSQL |
 
 ## Security rules that must remain true
 
-- Publicly expose TCP 80 and 443 only.
-- Never expose PostgreSQL 5432, API 8080, Caddy admin 2019, or Remote Desktop 3389.
+- Do not publicly expose or forward any office-host ports.
+- Keep PostgreSQL 5432, API 8080, Caddy admin 2019, and Remote Desktop 3389 private.
 - Keep PostgreSQL bound to localhost.
 - Keep Windows Firewall enabled.
 - Protect `manager.json`, `weekline.env`, database passwords, and backups.

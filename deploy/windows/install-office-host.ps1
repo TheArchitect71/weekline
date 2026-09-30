@@ -6,6 +6,9 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$DatabaseUrl,
 
+    [Parameter(Mandatory = $true)]
+    [string]$CloudflareTunnelToken,
+
     [string]$SourceDirectory = $PSScriptRoot,
     [string]$InstallRoot = "$env:ProgramData\Weekline",
     [string]$HostControlToken = "",
@@ -16,6 +19,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $ServiceName = "WeeklineHost"
+$TunnelServiceName = "WeeklineTunnel"
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = New-Object Security.Principal.WindowsPrincipal($identity)
@@ -31,6 +35,7 @@ function Assert-SingleLine([string]$Name, [string]$Value) {
 
 Assert-SingleLine "Domain" $Domain
 Assert-SingleLine "DatabaseUrl" $DatabaseUrl
+Assert-SingleLine "CloudflareTunnelToken" $CloudflareTunnelToken
 if ([Uri]::CheckHostName($Domain) -ne [UriHostNameType]::Dns) {
     throw "Domain must be a DNS hostname such as schedule.example.com, without a scheme, port, path, or Caddyfile syntax."
 }
@@ -46,7 +51,7 @@ if (-not $ManagerPassword) {
 Assert-SingleLine "ManagerEmail" $ManagerEmail
 Assert-SingleLine "ManagerName" $ManagerName
 
-$required = @("weekline-host.exe", "caddy.exe", "Caddyfile", "WeeklineManager.msi", "install-manager.ps1", "verify-office-deployment.ps1", "VERSION")
+$required = @("weekline-host.exe", "caddy.exe", "cloudflared.exe", "Caddyfile", "WeeklineManager.msi", "install-manager.ps1", "verify-office-deployment.ps1", "VERSION")
 foreach ($name in $required) {
     if (-not (Test-Path (Join-Path $SourceDirectory $name) -PathType Leaf)) {
         throw "Release artifact is missing: $name"
@@ -71,6 +76,11 @@ if ($existing -and $existing.Status -ne "Stopped") {
     Stop-Service -Name $ServiceName -Force
     $existing.WaitForStatus("Stopped", [TimeSpan]::FromSeconds(30))
 }
+$existingTunnel = Get-Service -Name $TunnelServiceName -ErrorAction SilentlyContinue
+if ($existingTunnel -and $existingTunnel.Status -ne "Stopped") {
+    Stop-Service -Name $TunnelServiceName -Force
+    $existingTunnel.WaitForStatus("Stopped", [TimeSpan]::FromSeconds(30))
+}
 
 $BinDirectory = Join-Path $InstallRoot "bin"
 $WebDirectory = Join-Path $InstallRoot "web"
@@ -81,6 +91,7 @@ New-Item -ItemType Directory -Path $ManagerDirectory -Force | Out-Null
 
 Copy-Item (Join-Path $SourceDirectory "weekline-host.exe") (Join-Path $BinDirectory "weekline-host.exe") -Force
 Copy-Item (Join-Path $SourceDirectory "caddy.exe") (Join-Path $BinDirectory "caddy.exe") -Force
+Copy-Item (Join-Path $SourceDirectory "cloudflared.exe") (Join-Path $BinDirectory "cloudflared.exe") -Force
 Copy-Item (Join-Path $SourceDirectory "WeeklineManager.msi") (Join-Path $ManagerDirectory "WeeklineManager.msi") -Force
 Copy-Item (Join-Path $SourceDirectory "install-manager.ps1") (Join-Path $ManagerDirectory "install-manager.ps1") -Force
 Copy-Item (Join-Path $SourceDirectory "Caddyfile") (Join-Path $InstallRoot "Caddyfile") -Force
@@ -89,6 +100,7 @@ Copy-Item (Join-Path $SourceDirectory "web\*") $WebDirectory -Recurse -Force
 
 $ConfigPath = Join-Path $InstallRoot "weekline.env"
 $CaddyPath = Join-Path $BinDirectory "caddy.exe"
+$CloudflaredPath = Join-Path $BinDirectory "cloudflared.exe"
 $CaddyConfig = Join-Path $InstallRoot "Caddyfile"
 $Utf8NoBom = New-Object Text.UTF8Encoding($false)
 $ConfigContent = @"
@@ -103,6 +115,7 @@ WEEKLINE_ENABLE_ATTENDANCE=false
 WEEKLINE_CADDY_EXECUTABLE=$CaddyPath
 WEEKLINE_CADDY_CONFIG=$CaddyConfig
 WEEKLINE_DOMAIN=$Domain
+WEEKLINE_CADDY_ADDRESS=127.0.0.1:8081
 WEEKLINE_WEB_ROOT=$WebDirectory
 "@
 [IO.File]::WriteAllText($ConfigPath, $ConfigContent, $Utf8NoBom)
@@ -147,20 +160,28 @@ else {
 }
 & sc.exe failure $ServiceName reset= 86400 actions= restart/5000/restart/15000/restart/60000 | Out-Null
 
-foreach ($port in 80, 443) {
-    $ruleName = "Weekline HTTPS $port"
-    if (-not (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue)) {
-        New-NetFirewallRule -DisplayName $ruleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort $port -Profile Domain,Private | Out-Null
-    }
+if ($existingTunnel) {
+    & sc.exe config $TunnelServiceName binPath= ('"{0}" tunnel --no-autoupdate run --token "{1}"' -f $CloudflaredPath, $CloudflareTunnelToken) start= auto | Out-Null
+}
+else {
+    $TunnelBinaryPath = '"{0}" tunnel --no-autoupdate run --token "{1}"' -f $CloudflaredPath, $CloudflareTunnelToken
+    New-Service -Name $TunnelServiceName -BinaryPathName $TunnelBinaryPath -DisplayName "Weekline Cloudflare Tunnel" -Description "Maintains the outbound Cloudflare Tunnel for the Weekline employee website." -StartupType Automatic | Out-Null
+}
+& sc.exe failure $TunnelServiceName reset= 86400 actions= restart/5000/restart/15000/restart/60000 | Out-Null
+
+foreach ($ruleName in "Weekline HTTPS 80", "Weekline HTTPS 443") {
+    Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 }
 
 Set-Service -Name $ServiceName -StartupType Automatic
+Set-Service -Name $TunnelServiceName -StartupType Automatic
 Start-Service -Name $ServiceName
+Start-Service -Name $TunnelServiceName
 
 Write-Host "Weekline office host installed and started."
 Write-Host "Manager installer: $(Join-Path $ManagerDirectory 'WeeklineManager.msi')"
 Write-Host "Manager configuration: $ManagerConfigPath"
 Write-Host "Copy the manager directory to each authorized manager computer and run install-manager.ps1 as that user."
-Write-Host "Forward office router TCP ports 80 and 443 to this desktop, and point $Domain to the Spectrum public IP."
-Write-Host "After DNS and router setup, close all manager apps and run:"
+Write-Host "Do not forward router ports 80 or 443. In Cloudflare, route $Domain to this named tunnel with origin http://127.0.0.1:8081."
+Write-Host "After the tunnel shows Healthy and the public hostname is configured, close all manager apps and run:"
 Write-Host "  & '$(Join-Path $InstallRoot 'verify-office-deployment.ps1')' -Domain '$Domain'"
